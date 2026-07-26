@@ -262,9 +262,9 @@ build_target() {
     done
 
     echo "[*] Applying Performance & Logging Tweaks..."
-    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_BUF_SHIFT 12
-    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 8
-    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT 8
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_BUF_SHIFT 17
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 12
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT 12
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_CONSOLE_LOGLEVEL_DEFAULT 1
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_MESSAGE_LOGLEVEL_DEFAULT 1
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_CONSOLE_LOGLEVEL_QUIET 1
@@ -306,9 +306,9 @@ build_target() {
     find . -type f \( -name "*aw8697*" \) -exec sed -i 's/dev_info(/dev_dbg(/g; s/pr_info(/pr_debug(/g' {} + || true
 
     # 4. Set custom kernel local version (-perf)
-    echo "[*] Setting custom kernel local version..."
-    scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
-    scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
+    #echo "[*] Setting custom kernel local version..."
+    #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
+    #scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
 
     # 5. MIUI configurations
     if [ "$OS_TYPE" == "miui" ]; then
