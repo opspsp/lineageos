@@ -309,6 +309,7 @@ build_target() {
     #echo "[*] Setting custom kernel local version..."
     #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
     #scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
+    scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION ""
 
     # 5. MIUI configurations
     if [ "$OS_TYPE" == "miui" ]; then
