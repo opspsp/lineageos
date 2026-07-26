@@ -262,7 +262,6 @@ build_target() {
     done
 
     echo "[*] Applying Performance & Logging Tweaks..."
-    scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AW8697_DEBUG
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_BUF_SHIFT 12
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 8
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT 8
@@ -285,10 +284,6 @@ build_target() {
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_FREEZER
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
     scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_FS
-    # Set custom local version
-    echo "[*] Setting custom kernel local version..."
-    scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
-    scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
 
     # 1. Baseband-guard configuration (Always applied)
     echo "[*] Injecting Baseband-guard configuration..."
@@ -301,11 +296,21 @@ build_target() {
             -e KSU \
             -e THREAD_INFO_IN_TASK \
             -e KSU_SUSFS
-         echo "[*] Silencing KernelSU logs..."
-        find . -type f -name "*.c" \( -path "*kernelsu*" -o -path "*KernelSU*" \) -exec sed -i 's/pr_info(/pr_debug(/g' {} + || true   
+
+        echo "[*] Silencing KernelSU logs..."
+        find . -type f -name "*.c" \( -path "*kernelsu*" -o -path "*KernelSU*" \) -exec sed -i 's/pr_info(/pr_debug(/g' {} + || true
     fi
 
-    # 3. MIUI configurations
+    # 3. Silence aw8697 vibrator driver logs
+    echo "[*] Silencing aw8697 vibrator driver logs..."
+    find . -type f \( -name "*aw8697*" \) -exec sed -i 's/dev_info(/dev_dbg(/g; s/pr_info(/pr_debug(/g' {} + || true
+
+    # 4. Set custom kernel local version (-perf)
+    echo "[*] Setting custom kernel local version..."
+    scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
+    scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
+
+    # 5. MIUI configurations
     if [ "$OS_TYPE" == "miui" ]; then
         echo "[*] Injecting MIUI specific configurations..."
         scripts/config --file "${OUT_DIR}/.config" \
