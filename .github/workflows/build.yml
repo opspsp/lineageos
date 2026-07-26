@@ -151,9 +151,9 @@ jobs:
         # Performance & Logging tweaks
         # ----------------------------------------------------
         echo "[*] Applying performance and logging tweaks..."
-        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_LOG_BUF_SHIFT 17
-        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 12
-        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT 12
+        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_LOG_BUF_SHIFT 12
+        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 8
+        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT 8
         ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_CONSOLE_LOGLEVEL_DEFAULT 1
         ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_MESSAGE_LOGLEVEL_DEFAULT 1
         ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_CONSOLE_LOGLEVEL_QUIET 1
@@ -173,6 +173,13 @@ jobs:
         ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_CGROUP_FREEZER
         ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_CGROUP_SCHED
         ./scripts/config --file "$CONFIG_FILE" --disable CONFIG_DEBUG_FS
+
+        # ----------------------------------------------------
+        # Fix kernel version (remove git tags like cip132)
+        # ----------------------------------------------------
+        echo "[*] Disabling LOCALVERSION_AUTO to prevent git tags..."
+        ./scripts/config --file "$CONFIG_FILE" --disable CONFIG_LOCALVERSION_AUTO
+        ./scripts/config --file "$CONFIG_FILE" --set-str CONFIG_LOCALVERSION ""
         EOF
 
         sed -i '/make "${MAKE_OPTS[@]}" "${DEFCONFIG}"/r /tmp/config_code' build_kernel.sh
