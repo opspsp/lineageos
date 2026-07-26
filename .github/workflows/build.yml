@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       device:
-        description: 'Target Device Code (设备代号)'
+        description: 'Target Device Code'
         required: true
         default: 'lmi'
         type: choice
@@ -28,7 +28,7 @@ on:
         type: boolean
         default: false
       target_os:
-        description: 'Target OS (目标系统)'
+        description: 'Target OS'
         required: true
         type: choice
         default: 'both'
@@ -41,10 +41,10 @@ jobs:
   build-kernel:
     name: Build ${{ github.event.inputs.device }} | KSU:${{ github.event.inputs.ksu }} | OS:${{ github.event.inputs.target_os }}
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v7
+      uses: actions/checkout@v4
       with:
         fetch-depth: 1
 
@@ -56,9 +56,9 @@ jobs:
           lib32readline-dev lib32z1-dev liblz4-tool \
           libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync \
           schedtool squashfs-tools xsltproc zip zlib1g-dev python3
-          
+
     - name: Cache ccache
-      uses: actions/cache@v6
+      uses: actions/cache@v4
       with:
         path: ~/.cache/ccache_mikernel
         key: ${{ runner.os }}-kernel-ccache-${{ github.event.inputs.device }}-${{ github.run_id }}
@@ -73,26 +73,146 @@ jobs:
         wget -q https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260510-release/Clang-16.0.6-20260510.tar.gz
         tar -zxvf Clang-16.0.6-20260510.tar.gz
 
+    - name: Inject configs into build_kernel.sh
+      run: |
+        cat > /tmp/config_code << 'EOF'
+        # ----------------------------------------------------
+        # Disable unnecessary debugging configs
+        # ----------------------------------------------------
+        echo "[*] Disabling unnecessary debugging configs..."
+        local CONFIG_FILE="${OUT_DIR}/.config"
+        disable_items=(
+            "CONFIG_ARCH_SUPPORTS_DEBUG_PAGEALLOC"
+            "CONFIG_HAVE_DEBUG_BUGVERBOSE"
+            "CONFIG_DEBUG_BUGVERBOSE"
+            "CONFIG_DYNAMIC_DEBUG"
+            "CONFIG_HAVE_DEBUG_KMEMLEAK"
+            "CONFIG_SCHED_DEBUG"
+            "CONFIG_DEBUG_LIST"
+            "CONFIG_ARCH_HAS_DEBUG_VIRTUAL"
+            "CONFIG_MSM_TZ_LOG"
+            "CONFIG_NETFILTER_NETLINK_LOG"
+            "CONFIG_NF_LOG_COMMON"
+            "CONFIG_NETFILTER_XT_TARGET_LOG"
+            "CONFIG_NETFILTER_XT_TARGET_NFLOG"
+            "CONFIG_NETFILTER_XT_MATCH_QUOTA2_LOG"
+            "CONFIG_NF_LOG_IPV4"
+            "CONFIG_NF_LOG_IPV6"
+            "CONFIG_DEBUG_PREEMPT"
+            "CONFIG_USB_PD_PHY_DEBUG"
+            "CONFIG_BQ2597X_DEBUG"
+            "CONFIG_CHARGER_DEBUG"
+            "CONFIG_DEBUG_PD_PHY"
+            "CONFIG_AUDIT_TREE"
+            "CONFIG_PROFILING"
+            "CONFIG_FTRACE"
+            "CONFIG_STACK_TRACER"
+            "CONFIG_FUNCTION_TRACER"
+            "CONFIG_SLUB_DEBUG"
+            "CONFIG_DEBUG_STACK_USAGE"
+            "CONFIG_SCHEDSTATS"
+            "CONFIG_DEBUG_VM"
+            "CONFIG_LOCK_DEBUGGING_SUPPORT"
+            "CONFIG_SCSI_LOGGING"
+            "CONFIG_XLOGCHAR"
+            "CONFIG_QCOM_INITIAL_LOGBUF"
+            "CONFIG_QTI_RPM_STATS_LOG"
+            "CONFIG_QTI_DDR_STATS_LOG"
+            "CONFIG_IPC_LOGGING"
+            "CONFIG_KASAN"
+            "CONFIG_KASAN_OUTLINE"
+            "CONFIG_PAGE_POISONING"
+            "CONFIG_DEBUG_INFO"
+            "CONFIG_DEBUG_MISC"
+            "CONFIG_DEBUG_ATOMIC_SLEEP"
+            "CONFIG_BINDER_DEBUG"
+            "CONFIG_BATTERY_HISTORY"
+            "CONFIG_MEM_ALLOC_PROFILING"
+            "CONFIG_LMK_DEBUGGER"
+            "CONFIG_LOCKUP_DETECTOR"
+            "CONFIG_HARDLOCKUP_DETECTOR"
+            "CONFIG_SOFTLOCKUP_DETECTOR"
+            "CONFIG_PM_TRACE_CHUNK"
+            "CONFIG_WARN_ALL_UNSEEN_RENAME"
+            "CONFIG_SCHED_WARN_FACTOR"
+            "CONFIG_PANIC_TIMEOUT"
+            "CONFIG_USBPD_DEBUG"
+            "CONFIG_IPA_DEBUG"
+            "CONFIG_QUICKCHARGE_DEBUG"
+            "CONFIG_BLK_DEV_IO_TRACE"
+            "CONFIG_TRANSPARENT_HUGEPAGE"
+            "CONFIG_DEBUG_FS"
+        )
+        for item in "${disable_items[@]}"; do
+            ./scripts/config --file "$CONFIG_FILE" --disable "$item"
+        done
+
+        # ----------------------------------------------------
+        # Performance & Logging tweaks
+        # ----------------------------------------------------
+        echo "[*] Applying performance and logging tweaks..."
+        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_LOG_BUF_SHIFT 17
+        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 12
+        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT 12
+        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_CONSOLE_LOGLEVEL_DEFAULT 1
+        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_MESSAGE_LOGLEVEL_DEFAULT 1
+        ./scripts/config --file "$CONFIG_FILE" --set-val CONFIG_CONSOLE_LOGLEVEL_QUIET 1
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_SLUB
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_SLUB_CPU_PARTIAL
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
+        ./scripts/config --file "$CONFIG_FILE" --disable CONFIG_CC_OPTIMIZE_FOR_SIZE
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_ZRAM
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_ZSMALLOC
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_ZPOOL
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_PSI
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_FAIR_GROUP_SCHED
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_CFS_BANDWIDTH
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_MEMCG
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_MEMCG_SWAP
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_CGROUP_PIDS
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_CGROUP_FREEZER
+        ./scripts/config --file "$CONFIG_FILE" --enable CONFIG_CGROUP_SCHED
+        ./scripts/config --file "$CONFIG_FILE" --disable CONFIG_DEBUG_FS
+        EOF
+
+        sed -i '/make "${MAKE_OPTS[@]}" "${DEFCONFIG}"/r /tmp/config_code' build_kernel.sh
+
+    - name: Silence KernelSU logs
+      run: |
+        echo "Silencing KernelSU logs (pr_info -> pr_debug)..."
+        find . -type f -name "*.c" \( -path "*kernelsu*" -o -path "*KernelSU*" \) -exec sed -i 's/pr_info(/pr_debug(/g' {} + || true
+
+    - name: Branding & Kernel version cleanup
+      run: |
+        echo "Setting kernel version to 4.19.325-perf ..."
+        # Change SUBLEVEL to 325
+        sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 325/' Makefile
+        # Set EXTRAVERSION to -perf
+        sed -i 's/^EXTRAVERSION = .*/EXTRAVERSION = -perf/' Makefile
+        # Clear NAME
+        sed -i 's/^NAME = .*/NAME = /' Makefile
+        # Prevent git commit hash from being added
+        touch .scmversion
+        echo "Kernel version will be: 4.19.325-perf"
+
     - name: Run Build Script
+      env:
+        ARCH: arm64
       run: |
         chmod +x build_kernel.sh
-        
         ARGS="${{ github.event.inputs.device }}"
-        
         if [ "${{ github.event.inputs.ksu }}" == "true" ]; then
           ARGS="$ARGS ksu"
         fi
-        
         if [ "${{ github.event.inputs.target_os }}" != "both" ]; then
           ARGS="$ARGS ${{ github.event.inputs.target_os }}"
         fi
-        
         echo "Executing command: ./build_kernel.sh $ARGS"
         ./build_kernel.sh $ARGS
 
     - name: Upload Flashable ZIP
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@v4
       with:
         name: APTKernel-${{ github.event.inputs.device }}-${{ github.event.inputs.target_os }}-${{ github.run_id }}
         path: APTKernel_*.zip
-        compression-level: 0 # 已经被 zip 压缩过，无需再二次压缩
+        compression-level: 0
