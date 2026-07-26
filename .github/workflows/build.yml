@@ -182,16 +182,21 @@ jobs:
         echo "Silencing KernelSU logs (pr_info -> pr_debug)..."
         find . -type f -name "*.c" \( -path "*kernelsu*" -o -path "*KernelSU*" \) -exec sed -i 's/pr_info(/pr_debug(/g' {} + || true
 
+    - name: Silence AW8697 haptic driver logs (all)
+      run: |
+        echo "Silencing all AW8697 haptic driver logs..."
+        find . -type f -name "*.c" -exec sed -i '/aw8697/s/pr_info(/pr_debug(/g' {} + || true
+        find . -type f -name "*.c" -exec sed -i '/aw8697/s/dev_info(/dev_dbg(/g' {} + || true
+        find . -type f -name "*.c" -exec sed -i '/aw8697/s/pr_err(/pr_debug(/g' {} + || true
+        find . -type f -name "*.c" -exec sed -i '/aw8697/s/printk(/pr_debug(/g' {} + || true
+        find . -type f -name "*.c" -exec sed -i '/aw8697/s/pr_warn(/pr_debug(/g' {} + || true
+
     - name: Branding & Kernel version cleanup
       run: |
         echo "Setting kernel version to 4.19.325-perf ..."
-        # Change SUBLEVEL to 325
         sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 325/' Makefile
-        # Set EXTRAVERSION to -perf
         sed -i 's/^EXTRAVERSION = .*/EXTRAVERSION = -perf/' Makefile
-        # Clear NAME
         sed -i 's/^NAME = .*/NAME = /' Makefile
-        # Prevent git commit hash from being added
         touch .scmversion
         echo "Kernel version will be: 4.19.325-perf"
 
