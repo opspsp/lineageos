@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       device:
-        description: 'Target Device Code'
+        description: 'Target Device Code (设备代号)'
         required: true
         default: 'lmi'
         type: choice
@@ -28,7 +28,7 @@ on:
         type: boolean
         default: false
       target_os:
-        description: 'Target OS'
+        description: 'Target OS (目标系统)'
         required: true
         type: choice
         default: 'both'
@@ -41,10 +41,10 @@ jobs:
   build-kernel:
     name: Build ${{ github.event.inputs.device }} | KSU:${{ github.event.inputs.ksu }} | OS:${{ github.event.inputs.target_os }}
     runs-on: ubuntu-latest
-
+    
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         fetch-depth: 1
 
@@ -56,64 +56,40 @@ jobs:
           lib32readline-dev lib32z1-dev liblz4-tool \
           libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync \
           schedtool squashfs-tools xsltproc zip zlib1g-dev python3
-
+          
     - name: Cache ccache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cache/ccache_mikernel
         key: ${{ runner.os }}-kernel-ccache-${{ github.event.inputs.device }}-${{ github.run_id }}
         restore-keys: |
           ${{ runner.os }}-kernel-ccache-${{ github.event.inputs.device }}-
           ${{ runner.os }}-kernel-ccache-
-
     - name: Setup zyc-clang 16 Toolchain
       run: |
         mkdir -p $HOME/zyc-clang
         cd $HOME/zyc-clang
         wget -q https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260510-release/Clang-16.0.6-20260510.tar.gz
         tar -zxvf Clang-16.0.6-20260510.tar.gz
-
-    - name: Silence KernelSU logs
-      run: |
-        echo "Silencing KernelSU logs (pr_info -> pr_debug)..."
-        find . -type f -name "*.c" \( -path "*kernelsu*" -o -path "*KernelSU*" \) -exec sed -i 's/pr_info(/pr_debug(/g' {} + || true
-
-    - name: Silence AW8697 haptic driver logs (all)
-      run: |
-        echo "Silencing all AW8697 haptic driver logs..."
-        find . -type f -name "*.c" -exec sed -i '/aw8697/s/pr_info(/pr_debug(/g' {} + || true
-        find . -type f -name "*.c" -exec sed -i '/aw8697/s/dev_info(/dev_dbg(/g' {} + || true
-        find . -type f -name "*.c" -exec sed -i '/aw8697/s/pr_err(/pr_debug(/g' {} + || true
-        find . -type f -name "*.c" -exec sed -i '/aw8697/s/printk(/pr_debug(/g' {} + || true
-        find . -type f -name "*.c" -exec sed -i '/aw8697/s/pr_warn(/pr_debug(/g' {} + || true
-
-    - name: Branding & Kernel version cleanup
-      run: |
-        echo "Setting kernel version to 4.19.325-perf ..."
-        sed -i 's/^SUBLEVEL = .*/SUBLEVEL = 325/' Makefile
-        sed -i 's/^EXTRAVERSION = .*/EXTRAVERSION = -perf/' Makefile
-        sed -i 's/^NAME = .*/NAME = /' Makefile
-        echo "" > .scmversion
-        echo "Kernel version will be: 4.19.325-perf"
-
     - name: Run Build Script
-      env:
-        ARCH: arm64
       run: |
         chmod +x build_kernel.sh
+        
         ARGS="${{ github.event.inputs.device }}"
+        
         if [ "${{ github.event.inputs.ksu }}" == "true" ]; then
           ARGS="$ARGS ksu"
         fi
+        
         if [ "${{ github.event.inputs.target_os }}" != "both" ]; then
           ARGS="$ARGS ${{ github.event.inputs.target_os }}"
         fi
+        
         echo "Executing command: ./build_kernel.sh $ARGS"
         ./build_kernel.sh $ARGS
-
     - name: Upload Flashable ZIP
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: APTKernel-${{ github.event.inputs.device }}-${{ github.event.inputs.target_os }}-${{ github.run_id }}
         path: APTKernel_*.zip
-        compression-level: 0
+        compression-level: 0 # 已经被 zip 压缩过，无需再二次压缩
