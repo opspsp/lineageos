@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Exit on any error
 set -e
 
@@ -30,6 +29,7 @@ ENABLE_KSU=0
 TARGET_OS="both"
 
 shift
+
 # Parse remaining arguments loosely
 for arg in "$@"; do
     case "$arg" in
@@ -101,6 +101,7 @@ echo "==========================================="
 echo " [*] Initializing AnyKernel3 Workspace"
 echo "==========================================="
 rm -rf anykernel
+
 echo "[*] Cloning AnyKernel3..."
 git clone https://github.com/AstideLabs/AnyKernel3 -b master --single-branch --depth=1 anykernel
 echo "[+] AnyKernel3 cloned successfully."
@@ -114,9 +115,8 @@ build_target() {
     echo "==========================================="
     echo " Starting Kernel Compilation for ${DEVICE_NAME} (Target: $OS_TYPE)"
     echo "==========================================="
-    
+
     local OUT_DIR="${KERNEL_DIR}/out_${OS_TYPE}"
-    
     local MAKE_OPTS=(
         -j"$(nproc)"
         O="${OUT_DIR}"
@@ -140,7 +140,7 @@ build_target() {
     if [ "$OS_TYPE" == "miui" ]; then
         echo "[*] Applying MIUI DTS patches..."
         cp -a "${DTS_SOURCE}" "${DTS_BACKUP}"
-        
+
         # Apply MIUI specific sed patches to dts
         sed -i 's/<154>/<1537>/g' ${DTS_SOURCE}/dsi-panel-j1s* || true
         sed -i 's/<154>/<1537>/g' ${DTS_SOURCE}/dsi-panel-j2* || true
@@ -154,17 +154,14 @@ build_target() {
         sed -i 's/<70>/<695>/g' ${DTS_SOURCE}/dsi-panel-l11r-38-08-0a-dsc-cmd.dtsi || true
         sed -i 's/<71>/<710>/g' ${DTS_SOURCE}/dsi-panel-j1s* || true
         sed -i 's/<71>/<710>/g' ${DTS_SOURCE}/dsi-panel-j2* || true
-
         sed -i 's/\/\/ mi,mdss-dsi-pan-enable-smart-fps/mi,mdss-dsi-pan-enable-smart-fps/g' ${DTS_SOURCE}/dsi-panel* || true
         sed -i 's/\/\/ mi,mdss-dsi-smart-fps-max_framerate/mi,mdss-dsi-smart-fps-max_framerate/g' ${DTS_SOURCE}/dsi-panel* || true
         sed -i 's/\/\/ qcom,mdss-dsi-pan-enable-smart-fps/qcom,mdss-dsi-pan-enable-smart-fps/g' ${DTS_SOURCE}/dsi-panel* || true
         sed -i 's/qcom,mdss-dsi-qsync-min-refresh-rate/\/\/qcom,mdss-dsi-qsync-min-refresh-rate/g' ${DTS_SOURCE}/dsi-panel* || true
-
         sed -i 's/120 90 60/120 90 60 50 30/g' ${DTS_SOURCE}/dsi-panel-g7a-36-02-0c-dsc-video.dtsi || true
         sed -i 's/120 90 60/120 90 60 50 30/g' ${DTS_SOURCE}/dsi-panel-g7a-37-02-0a-dsc-video.dtsi || true
         sed -i 's/120 90 60/120 90 60 50 30/g' ${DTS_SOURCE}/dsi-panel-g7a-37-02-0b-dsc-video.dtsi || true
         sed -i 's/144 120 90 60/144 120 90 60 50 48 30/g' ${DTS_SOURCE}/dsi-panel-j3s-37-02-0a-dsc-video.dtsi || true
-
         sed -i 's/\/\/39 00 00 00 00 00 03 51 03 FF/39 00 00 00 00 00 03 51 03 FF/g' ${DTS_SOURCE}/dsi-panel-j9-38-0a-0a-fhd-video.dtsi || true
         sed -i 's/\/\/39 00 00 00 00 00 03 51 0D FF/39 00 00 00 00 00 03 51 0D FF/g' ${DTS_SOURCE}/dsi-panel-j2-p2-1-38-0c-0a-dsc-cmd.dtsi || true
         sed -i 's/\/\/39 00 00 00 00 00 05 51 0F 8F 00 00/39 00 00 00 00 00 05 51 0F 8F 00 00/g' ${DTS_SOURCE}/dsi-panel-j1s-42-02-0a-dsc-cmd.dtsi || true
@@ -194,9 +191,105 @@ build_target() {
     make "${MAKE_OPTS[@]}" "${DEFCONFIG}"
 
     # ----------------------------------------------------
-    # Configuration tweaks
+    # Configuration tweaks (Debugging & Performance)
     # ----------------------------------------------------
-    
+    echo "[*] Disabling unnecessary debugging configs..."
+    disable_items=(
+        "CONFIG_ARCH_SUPPORTS_DEBUG_PAGEALLOC"
+        "CONFIG_HAVE_DEBUG_BUGVERBOSE"
+        "CONFIG_DEBUG_BUGVERBOSE"
+        "CONFIG_DYNAMIC_DEBUG"
+        "CONFIG_HAVE_DEBUG_KMEMLEAK"
+        "CONFIG_SCHED_DEBUG"
+        "CONFIG_DEBUG_LIST"
+        "CONFIG_ARCH_HAS_DEBUG_VIRTUAL"
+        "CONFIG_MSM_TZ_LOG"
+        "CONFIG_NETFILTER_NETLINK_LOG"
+        "CONFIG_NF_LOG_COMMON"
+        "CONFIG_NETFILTER_XT_TARGET_LOG"
+        "CONFIG_NETFILTER_XT_TARGET_NFLOG"
+        "CONFIG_NETFILTER_XT_MATCH_QUOTA2_LOG"
+        "CONFIG_NF_LOG_IPV4"
+        "CONFIG_NF_LOG_IPV6"
+        "CONFIG_DEBUG_PREEMPT"
+        "CONFIG_USB_PD_PHY_DEBUG"
+        "CONFIG_BQ2597X_DEBUG"
+        "CONFIG_CHARGER_DEBUG"
+        "CONFIG_DEBUG_PD_PHY"
+        "CONFIG_AUDIT_TREE"
+        "CONFIG_PROFILING"
+        "CONFIG_FTRACE"
+        "CONFIG_STACK_TRACER"
+        "CONFIG_FUNCTION_TRACER"
+        "CONFIG_SLUB_DEBUG"
+        "CONFIG_DEBUG_STACK_USAGE"
+        "CONFIG_SCHEDSTATS"
+        "CONFIG_DEBUG_VM"
+        "CONFIG_LOCK_DEBUGGING_SUPPORT"
+        "CONFIG_SCSI_LOGGING"
+        "CONFIG_XLOGCHAR"
+        "CONFIG_QCOM_INITIAL_LOGBUF"
+        "CONFIG_QTI_RPM_STATS_LOG"
+        "CONFIG_QTI_DDR_STATS_LOG"
+        "CONFIG_IPC_LOGGING"
+        "CONFIG_KASAN"
+        "CONFIG_KASAN_OUTLINE"
+        "CONFIG_PAGE_POISONING"
+        "CONFIG_DEBUG_INFO"
+        "CONFIG_DEBUG_MISC"
+        "CONFIG_DEBUG_ATOMIC_SLEEP"
+        "CONFIG_BINDER_DEBUG"
+        "CONFIG_BATTERY_HISTORY"
+        "CONFIG_MEM_ALLOC_PROFILING"
+        "CONFIG_LMK_DEBUGGER"
+        "CONFIG_LOCKUP_DETECTOR"
+        "CONFIG_HARDLOCKUP_DETECTOR"
+        "CONFIG_SOFTLOCKUP_DETECTOR"
+        "CONFIG_PM_TRACE_CHUNK"
+        "CONFIG_WARN_ALL_UNSEEN_RENAME"
+        "CONFIG_SCHED_WARN_FACTOR"
+        "CONFIG_PANIC_TIMEOUT"
+        "CONFIG_USBPD_DEBUG"
+        "CONFIG_IPA_DEBUG"
+        "CONFIG_QUICKCHARGE_DEBUG"
+        "CONFIG_BLK_DEV_IO_TRACE"
+        "CONFIG_TRANSPARENT_HUGEPAGE"
+        "CONFIG_DEBUG_FS"
+    )
+
+    for item in "${disable_items[@]}"; do
+        scripts/config --file "${OUT_DIR}/.config" -d "$item"
+    done
+
+    echo "[*] Applying Performance & Logging Tweaks..."
+    scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AW8697_DEBUG
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_BUF_SHIFT 12
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 8
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT 8
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_CONSOLE_LOGLEVEL_DEFAULT 1
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_MESSAGE_LOGLEVEL_DEFAULT 1
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_CONSOLE_LOGLEVEL_QUIET 1
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_SLUB
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_SLUB_CPU_PARTIAL
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
+    scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CC_OPTIMIZE_FOR_SIZE
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_ZRAM
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_ZSMALLOC
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_ZPOOL
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_PSI
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_FAIR_GROUP_SCHED
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CFS_BANDWIDTH
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_MEMCG
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_MEMCG_SWAP
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_PIDS
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_FREEZER
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
+    scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_FS
+    # Set custom local version
+    echo "[*] Setting custom kernel local version..."
+    scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
+    scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
+
     # 1. Baseband-guard configuration (Always applied)
     echo "[*] Injecting Baseband-guard configuration..."
     scripts/config --file "${OUT_DIR}/.config" -e BBG
@@ -208,6 +301,8 @@ build_target() {
             -e KSU \
             -e THREAD_INFO_IN_TASK \
             -e KSU_SUSFS
+         echo "[*] Silencing KernelSU logs..."
+        find . -type f -name "*.c" \( -path "*kernelsu*" -o -path "*KernelSU*" \) -exec sed -i 's/pr_info(/pr_debug(/g' {} + || true   
     fi
 
     # 3. MIUI configurations
@@ -241,7 +336,6 @@ build_target() {
             -d REKERNEL_NETWORK
     fi
 
-    # We always need to re-evaluate dependencies because BBG is injected unconditionally
     echo "[*] Updating config (make olddefconfig)..."
     make "${MAKE_OPTS[@]}" olddefconfig
 
@@ -262,37 +356,36 @@ build_target() {
     if [ -f "${OUT_DIR}/arch/arm64/boot/Image" ]; then
         echo "[+] $OS_TYPE Build Successful!"
         echo "[+] Kernel Image path: ${OUT_DIR}/arch/arm64/boot/Image"
-        
+
         echo "[*] Generating dtb..."
         find "${OUT_DIR}/arch/arm64/boot/dts" -name '*.dtb' -exec cat {} + > "${OUT_DIR}/arch/arm64/boot/dtb"
 
         echo "[*] Packaging to AnyKernel3 ($OS_TYPE)..."
-        # 确保独立打包：清空现有的 kernels 目录
         rm -rf anykernel/kernels/*
         mkdir -p "anykernel/kernels/${OS_TYPE}/"
-        
+
         cp "${OUT_DIR}/arch/arm64/boot/Image" "anykernel/kernels/${OS_TYPE}/"
         cp "${OUT_DIR}/arch/arm64/boot/dtb" "anykernel/kernels/${OS_TYPE}/"
-        
+
         if [ -f "${OUT_DIR}/arch/arm64/boot/dtbo.img" ]; then
             cp "${OUT_DIR}/arch/arm64/boot/dtbo.img" "anykernel/kernels/${OS_TYPE}/"
         fi
-        
-        # 确定 ZIP 文件名
+
         local KSU_ZIP_STR="NoKernelSU"
         if [ "$ENABLE_KSU" -eq 1 ]; then
             KSU_ZIP_STR="ReSukiSU-SuSFS"
         fi
+
         local GIT_COMMIT_ID=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "unknown")
         local OS_UPPER=$(echo "$OS_TYPE" | tr '[:lower:]' '[:upper:]')
         local ZIP_FILENAME="APTKernel_${OS_UPPER}_${DEVICE_NAME}_${KSU_ZIP_STR}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip"
-        
+
         echo "[*] Zipping $ZIP_FILENAME ..."
         pushd anykernel > /dev/null
         zip -r9 "$ZIP_FILENAME" ./* -x .git .gitignore out/ ./*.zip > /dev/null
         mv "$ZIP_FILENAME" ../
         popd > /dev/null
-        
+
         echo "[+] $OS_TYPE kernel binaries successfully packed into: $ZIP_FILENAME"
     else
         echo "[-] $OS_TYPE Build Failed. Kernel Image not found."
