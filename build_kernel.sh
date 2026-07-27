@@ -303,10 +303,17 @@ build_target() {
     fi
 
     # 3. Silence aw8697 vibrator driver logs
-    echo "[*] Silencing aw8697 vibrator driver logs..."
-    find . -type f \( -name "*aw8697*" \) -exec sed -i 's/dev_info(/dev_dbg(/g; s/pr_info(/pr_debug(/g' {} + || true
-    DRV_DIR=$(dirname "$(grep -rl "awinic,aw8697_haptic" --include="*.c" .)"); find "$DRV_DIR" -name "*.c" -exec sed -i 's/dev_info(/dev_dbg(/g; s/pr_info(/pr_debug(/g' {} +
-    # 4. Set custom kernel local version (-perf)
+    #echo "[*] Silencing aw8697 vibrator driver logs..."
+    # Silence aw8697 haptic driver logs
+    AW_DIR="./drivers/input/misc/aw8697_haptic"
+    if [ -d "$AW_DIR" ]; then
+    sed -i \
+        -e '/^#define DEBUG/d' \
+        -e 's/pr_info(/pr_debug(/g' \
+        -e 's/aw_dev_info(/aw_dev_dbg(/g' \
+        "$AW_DIR"/*.c
+    fi
+   # 4. Set custom kernel local version (-perf)
     #echo "[*] Setting custom kernel local version..."
     #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
     #scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
