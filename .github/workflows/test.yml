@@ -1,10 +1,13 @@
-name: Diff ir-spi driver and DTS node
+name: Apply IR fix for alioth
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  diff-driver:
+  fix-ir:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout broken kernel source
@@ -12,6 +15,7 @@ jobs:
         with:
           repository: AstideLabs/android_kernel_xiaomi_sm8250
           ref: android16-aptusitu
+          token: ${{ secrets.GITHUB_TOKEN }}
           submodules: recursive
           path: broken-kernel
 
@@ -23,34 +27,46 @@ jobs:
           submodules: recursive
           path: reference-kernel
 
-      - name: Diff ir-spi driver and DTS node
+      - name: Apply IR fix
+        working-directory: broken-kernel
         run: |
-          {
-            echo "=========================================="
-            echo " DIFF: drivers/media/rc/ir-spi.c"
-            echo "=========================================="
-            diff broken-kernel/drivers/media/rc/ir-spi.c \
-                 reference-kernel/drivers/media/rc/ir-spi.c || true
+          DTS="arch/arm64/boot/dts/vendor/qcom/xiaomi-sm8250-common.dtsi"
 
-            echo ""
-            echo "=========================================="
-            echo " ir-spi@0 full node in BROKEN xiaomi-sm8250-common.dtsi"
-            echo "=========================================="
-            grep -n -A 30 "ir-spi@0" \
-              broken-kernel/arch/arm64/boot/dts/vendor/qcom/xiaomi-sm8250-common.dtsi || true
+          # 1. Replace ir-spi.c with the updated version from reference
+          cp ../reference-kernel/drivers/media/rc/ir-spi.c \
+             drivers/media/rc/ir-spi.c
 
-            echo ""
-            echo "=========================================="
-            echo " ir-spi@0 full node in REFERENCE xiaomi-sm8250-common.dtsi"
-            echo "=========================================="
-            grep -n -A 30 "ir-spi@0" \
-              reference-kernel/arch/arm64/boot/dts/vendor/qcom/xiaomi-sm8250-common.dtsi || true
+          # 2. Fix DTS: change compatible string
+          sed -i 's/compatible = "ir-spi";/compatible = "ir-spi-led";/' "$DTS"
 
-          } | tee ir-driver-diff.txt
+          # 3. Fix DTS: add power-supply line after spi-max-frequency line in ir-spi@0 node
+          sed -i '/ir-spi@0/,/};/{
+            /spi-max-frequency = <19200000>;/a\\t\tpower-supply = <\&irda_regulator>;
+          }' "$DTS"
 
-      - name: Upload results
-        uses: actions/upload-artifact@v4
-        with:
-          name: ir-driver-diff
-          path: ir-driver-diff.txt
-          retention-days: 7
+          echo "=== Verifying changes ==="
+          echo "-- ir-spi.c compatible string --"
+          grep "compatible" drivers/media/rc/ir-spi.c
+
+          echo "-- DTS ir-spi@0 node --"
+          grep -A 7 "ir-spi@0" "$DTS"
+
+      - name: Check irda_regulator definition
+        working-directory: broken-kernel
+        run: |
+          echo "=== irda_regulator in BROKEN kernel ==="
+          grep -rn "irda_regulator" arch/arm64/boot/dts/vendor/qcom/ || echo "NOT FOUND - needs to be added"
+
+          echo ""
+          echo "=== irda_regulator in REFERENCE kernel ==="
+          grep -rn "irda_regulator" ../reference-kernel/arch/arm64/boot/dts/vendor/qcom/ || echo "NOT FOUND"
+
+      - name: Commit and push
+        working-directory: broken-kernel
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add drivers/media/rc/ir-spi.c \
+                  arch/arm64/boot/dts/vendor/qcom/xiaomi-sm8250-common.dtsi
+          git commit -m "media: rc: ir-spi: update driver and fix DTS for alioth IR blaster"
+          git push origin android16-aptusitu
