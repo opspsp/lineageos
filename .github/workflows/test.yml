@@ -1,0 +1,30 @@
+name: Identify aw8697 driver files
+
+on:
+  workflow_dispatch:
+
+jobs:
+  find-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Search for aw8697 haptic driver files
+        run: |
+          echo "=== Files containing 'awinic,aw8697_haptic' ==="
+          grep -rl "awinic,aw8697_haptic" --include="*.c" . || echo "NOT FOUND"
+
+          echo ""
+          echo "=== Directories containing those files ==="
+          grep -rl "awinic,aw8697_haptic" --include="*.c" . | xargs -I{} dirname {} | sort -u
+
+          echo ""
+          echo "=== Checking for forced DEBUG macro ==="
+          grep -rn "^#define DEBUG" $(grep -rl "awinic,aw8697_haptic" --include="*.c" . | xargs -I{} dirname {} | sort -u) 2>/dev/null || echo "No #define DEBUG found"
+
+          echo ""
+          echo "=== Checking log function usage (pr_info/dev_info/printk) ==="
+          grep -rn "pr_info(\|dev_info(\|printk(" $(grep -rl "awinic,aw8697_haptic" --include="*.c" . | xargs -I{} dirname {} | sort -u) 2>/dev/null | head -30
