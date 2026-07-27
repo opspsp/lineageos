@@ -1,10 +1,10 @@
-name: Fix IR driver for alioth
+name: Diff IR content for alioth
 
 on:
   workflow_dispatch:
 
 jobs:
-  fix-ir:
+  diff-ir:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout broken kernel source
@@ -15,7 +15,7 @@ jobs:
           submodules: recursive
           path: broken-kernel
 
-      - name: Checkout reference kernel source (working IR)
+      - name: Checkout reference kernel source
         uses: actions/checkout@v4
         with:
           repository: IzumiYouka/android_kernel_xiaomi_sm8250
@@ -23,57 +23,61 @@ jobs:
           submodules: recursive
           path: reference-kernel
 
-      - name: Scan IR files in both sources
+      - name: Diff alioth DTS files and defconfig
         run: |
+          DTS_PATH="arch/arm64/boot/dts/vendor/qcom"
           {
             echo "=========================================="
-            echo " IR files in BROKEN kernel"
+            echo " DIFF: alioth-sm8250.dtsi"
             echo "=========================================="
-            grep -rlE "consumer_ir|ir_blaster|qcom,ir|ir-recv|ir-tx" \
-              --include="*.c" --include="*.h" --include="*.dts" \
-              --include="*.dtsi" --include="Kconfig" --include="Makefile" \
-              broken-kernel/ 2>/dev/null
+            diff broken-kernel/$DTS_PATH/alioth-sm8250.dtsi \
+                 reference-kernel/$DTS_PATH/alioth-sm8250.dtsi || true
 
             echo ""
             echo "=========================================="
-            echo " IR files in REFERENCE kernel"
+            echo " DIFF: alioth-sm8250-overlay.dts"
             echo "=========================================="
-            grep -rlE "consumer_ir|ir_blaster|qcom,ir|ir-recv|ir-tx" \
-              --include="*.c" --include="*.h" --include="*.dts" \
-              --include="*.dtsi" --include="Kconfig" --include="Makefile" \
-              reference-kernel/ 2>/dev/null
+            diff broken-kernel/$DTS_PATH/alioth-sm8250-overlay.dts \
+                 reference-kernel/$DTS_PATH/alioth-sm8250-overlay.dts || true
 
             echo ""
             echo "=========================================="
-            echo " alioth DTS files in BROKEN kernel"
+            echo " DIFF: alioth-pinctrl.dtsi"
             echo "=========================================="
-            find broken-kernel/ -type f \( -name "*alioth*" -o -name "*aliothin*" \) \
-              \( -name "*.dts" -o -name "*.dtsi" \) 2>/dev/null
+            diff broken-kernel/$DTS_PATH/alioth-pinctrl.dtsi \
+                 reference-kernel/$DTS_PATH/alioth-pinctrl.dtsi || true
 
             echo ""
             echo "=========================================="
-            echo " alioth DTS files in REFERENCE kernel"
+            echo " IR-related grep in alioth-sm8250.dtsi (BROKEN)"
             echo "=========================================="
-            find reference-kernel/ -type f \( -name "*alioth*" -o -name "*aliothin*" \) \
-              \( -name "*.dts" -o -name "*.dtsi" \) 2>/dev/null
+            grep -in "ir\|infrared\|pwm.*ir\|ir.*pwm\|blaster" \
+                 broken-kernel/$DTS_PATH/alioth-sm8250.dtsi || echo "NOT FOUND"
 
             echo ""
             echo "=========================================="
-            echo " IR driver folders in BROKEN kernel"
+            echo " IR-related grep in alioth-sm8250.dtsi (REFERENCE)"
             echo "=========================================="
-            find broken-kernel/ -type d -iname "*ir*" 2>/dev/null
+            grep -in "ir\|infrared\|pwm.*ir\|ir.*pwm\|blaster" \
+                 reference-kernel/$DTS_PATH/alioth-sm8250.dtsi || echo "NOT FOUND"
 
             echo ""
             echo "=========================================="
-            echo " IR driver folders in REFERENCE kernel"
+            echo " DIFF: alioth defconfig (IR flags)"
             echo "=========================================="
-            find reference-kernel/ -type d -iname "*ir*" 2>/dev/null
+            BROKEN_DEF=$(find broken-kernel/arch/arm64/configs -name "*alioth*" | head -1)
+            REF_DEF=$(find reference-kernel/arch/arm64/configs -name "*alioth*" | head -1)
+            echo "Broken defconfig: $BROKEN_DEF"
+            echo "Reference defconfig: $REF_DEF"
+            grep -iE "IR|INFRARED|LIRC|RC_CORE|PWM_IR" "$BROKEN_DEF" 2>/dev/null || echo "No IR flags in broken defconfig"
+            echo "---"
+            grep -iE "IR|INFRARED|LIRC|RC_CORE|PWM_IR" "$REF_DEF" 2>/dev/null || echo "No IR flags in reference defconfig"
 
-          } | tee ir-scan-results.txt
+          } | tee ir-diff-results.txt
 
-      - name: Upload scan results
+      - name: Upload diff results
         uses: actions/upload-artifact@v4
         with:
-          name: ir-scan-results
-          path: ir-scan-results.txt
+          name: ir-diff-results
+          path: ir-diff-results.txt
           retention-days: 7
