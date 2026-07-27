@@ -1,30 +1,114 @@
-name: Identify aw8697 driver files
+name: Identify IR (Infrared) driver files
 
 on:
   workflow_dispatch:
+    inputs:
+      reference_repo:
+        description: "Repo URL of another kernel source where IR works correctly (optional, for comparison)"
+        required: false
+        type: string
+        default: ""
+      reference_ref:
+        description: "Branch/tag of the reference repo (optional)"
+        required: false
+        type: string
+        default: "main"
 
 jobs:
-  find-files:
+  find-ir-files:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout kernel source
+      - name: Checkout this kernel source (the one with the IR bug)
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          path: broken-kernel
 
-      - name: Search for aw8697 haptic driver files
+      - name: Checkout reference kernel source (working IR), if provided
+        if: ${{ github.event.inputs.reference_repo != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.reference_repo }}
+          ref: ${{ github.event.inputs.reference_ref }}
+          submodules: recursive
+          path: reference-kernel
+
+      - name: Search IR-related files/folders in BROKEN kernel
+        working-directory: broken-kernel
         run: |
-          echo "=== Files containing 'awinic,aw8697_haptic' ==="
-          grep -rl "awinic,aw8697_haptic" --include="*.c" . || echo "NOT FOUND"
+          echo "=================================================="
+          echo " Directories with 'ir' or 'infrared' in their name"
+          echo "=================================================="
+          find . -type d \( \
+              -iname "*infrared*" -o \
+              -iname "*consumer_ir*" -o \
+              -iname "*rc-core*" -o \
+              -iname "*rc_core*" -o \
+              -iname "*lirc*" -o \
+              -iname "*ir-*" -o \
+              -iname "*_ir" -o \
+              -iname "*irda*" \
+          \) 2>/dev/null
 
           echo ""
-          echo "=== Directories containing those files ==="
-          grep -rl "awinic,aw8697_haptic" --include="*.c" . | xargs -I{} dirname {} | sort -u
+          echo "=================================================="
+          echo " Source files (.c/.h) mentioning IR/infrared APIs"
+          echo "=================================================="
+          grep -rlE "consumer_ir|infrared|rc_register_device|rc-core|IR_TYPE_|lirc_dev|ir_raw_event" \
+              --include="*.c" --include="*.h" . 2>/dev/null
 
           echo ""
-          echo "=== Checking for forced DEBUG macro ==="
-          grep -rn "^#define DEBUG" $(grep -rl "awinic,aw8697_haptic" --include="*.c" . | xargs -I{} dirname {} | sort -u) 2>/dev/null || echo "No #define DEBUG found"
+          echo "=================================================="
+          echo " Kconfig entries mentioning IR"
+          echo "=================================================="
+          grep -rniE "infrared|consumer.?ir|lirc|rc.core" --include="Kconfig" . 2>/dev/null
 
           echo ""
-          echo "=== Checking log function usage (pr_info/dev_info/printk) ==="
-          grep -rn "pr_info(\|dev_info(\|printk(" $(grep -rl "awinic,aw8697_haptic" --include="*.c" . | xargs -I{} dirname {} | sort -u) 2>/dev/null | head -30
+          echo "=================================================="
+          echo " Device tree nodes mentioning IR"
+          echo "=================================================="
+          grep -rliE "infrared|consumer-ir|qcom,ir|ir-rx|ir-tx" --include="*.dts" --include="*.dtsi" . 2>/dev/null
+
+          echo ""
+          echo "=================================================="
+          echo " defconfig flags mentioning IR (enabled in this build)"
+          echo "=================================================="
+          grep -riE "IR|INFRARED|LIRC" arch/arm64/configs/*defconfig 2>/dev/null | grep -iE "ir|infrared|lirc"
+
+      - name: Search IR-related files/folders in REFERENCE kernel (working IR)
+        if: ${{ github.event.inputs.reference_repo != '' }}
+        working-directory: reference-kernel
+        run: |
+          echo "=================================================="
+          echo " Directories with 'ir' or 'infrared' in their name"
+          echo "=================================================="
+          find . -type d \( \
+              -iname "*infrared*" -o \
+              -iname "*consumer_ir*" -o \
+              -iname "*rc-core*" -o \
+              -iname "*rc_core*" -o \
+              -iname "*lirc*" -o \
+              -iname "*ir-*" -o \
+              -iname "*_ir" -o \
+              -iname "*irda*" \
+          \) 2>/dev/null
+
+          echo ""
+          echo "=================================================="
+          echo " Source files (.c/.h) mentioning IR/infrared APIs"
+          echo "=================================================="
+          grep -rlE "consumer_ir|infrared|rc_register_device|rc-core|IR_TYPE_|lirc_dev|ir_raw_event" \
+              --include="*.c" --include="*.h" . 2>/dev/null
+
+          echo ""
+          echo "=================================================="
+          echo " Device tree nodes mentioning IR"
+          echo "=================================================="
+          grep -rliE "infrared|consumer-ir|qcom,ir|ir-rx|ir-tx" --include="*.dts" --include="*.dtsi" . 2>/dev/null
+
+      - name: Show file sizes / line counts for quick diff planning
+        if: ${{ github.event.inputs.reference_repo != '' }}
+        run: |
+          echo "Use the results above to decide which files/folders need to be replaced."
+          echo "Compare the exact IR file/folder paths between both sources"
+          echo "(e.g. with 'diff -rq' in a follow-up workflow, once paths are confirmed)."
