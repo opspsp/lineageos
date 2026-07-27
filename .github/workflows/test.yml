@@ -1,10 +1,10 @@
-name: Deep IR DTS search for alioth
+name: Diff ir-spi driver and DTS node
 
 on:
   workflow_dispatch:
 
 jobs:
-  deep-search:
+  diff-driver:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout broken kernel source
@@ -23,68 +23,34 @@ jobs:
           submodules: recursive
           path: reference-kernel
 
-      - name: Deep IR search
+      - name: Diff ir-spi driver and DTS node
         run: |
-          DTS="arch/arm64/boot/dts/vendor/qcom"
           {
             echo "=========================================="
-            echo " IR blaster SPI node in BROKEN kernel (all dts/dtsi)"
+            echo " DIFF: drivers/media/rc/ir-spi.c"
             echo "=========================================="
-            grep -rn "ir.blaster\|ir_blaster\|ir-spi\|spi.*ir\|IR_SPI\|pwm.*ir\|gpio.*ir.*tx\|ir.*tx" \
-              broken-kernel/$DTS/ 2>/dev/null || echo "NOT FOUND"
+            diff broken-kernel/drivers/media/rc/ir-spi.c \
+                 reference-kernel/drivers/media/rc/ir-spi.c || true
 
             echo ""
             echo "=========================================="
-            echo " IR blaster SPI node in REFERENCE kernel (all dts/dtsi)"
+            echo " ir-spi@0 full node in BROKEN xiaomi-sm8250-common.dtsi"
             echo "=========================================="
-            grep -rn "ir.blaster\|ir_blaster\|ir-spi\|spi.*ir\|IR_SPI\|pwm.*ir\|gpio.*ir.*tx\|ir.*tx" \
-              reference-kernel/$DTS/ 2>/dev/null || echo "NOT FOUND"
+            grep -n -A 30 "ir-spi@0" \
+              broken-kernel/arch/arm64/boot/dts/vendor/qcom/xiaomi-sm8250-common.dtsi || true
 
             echo ""
             echo "=========================================="
-            echo " kona.dtsi IR content (BROKEN)"
+            echo " ir-spi@0 full node in REFERENCE xiaomi-sm8250-common.dtsi"
             echo "=========================================="
-            grep -n "ir\|infrared\|blaster" broken-kernel/$DTS/kona.dtsi 2>/dev/null | \
-              grep -iv "bird\|circuit\|pair\|heir\|repair\|affair\|chair\|flair\|fair\|hair" || echo "NOT FOUND"
+            grep -n -A 30 "ir-spi@0" \
+              reference-kernel/arch/arm64/boot/dts/vendor/qcom/xiaomi-sm8250-common.dtsi || true
 
-            echo ""
-            echo "=========================================="
-            echo " kona.dtsi IR content (REFERENCE)"
-            echo "=========================================="
-            grep -n "ir\|infrared\|blaster" reference-kernel/$DTS/kona.dtsi 2>/dev/null | \
-              grep -iv "bird\|circuit\|pair\|heir\|repair\|affair\|chair\|flair\|fair\|hair" || echo "NOT FOUND"
-
-            echo ""
-            echo "=========================================="
-            echo " Any Xiaomi IR driver in techpack (BROKEN)"
-            echo "=========================================="
-            find broken-kernel/techpack/ -name "*.c" -o -name "*.h" | \
-              xargs grep -rl "ir.blaster\|ir_blaster\|consumer.ir" 2>/dev/null || echo "NOT FOUND"
-
-            echo ""
-            echo "=========================================="
-            echo " Any Xiaomi IR driver in techpack (REFERENCE)"
-            echo "=========================================="
-            find reference-kernel/techpack/ -name "*.c" -o -name "*.h" | \
-              xargs grep -rl "ir.blaster\|ir_blaster\|consumer.ir" 2>/dev/null || echo "NOT FOUND"
-
-            echo ""
-            echo "=========================================="
-            echo " Full defconfig IR flags comparison"
-            echo "=========================================="
-            echo "-- BROKEN defconfigs with IR_SPI --"
-            grep -r "IR_SPI\|IR_GPIO_TX\|IR_PWM_TX\|RC_CORE\|LIRC" \
-              broken-kernel/arch/arm64/configs/ 2>/dev/null
-
-            echo "-- REFERENCE defconfigs with IR_SPI --"
-            grep -r "IR_SPI\|IR_GPIO_TX\|IR_PWM_TX\|RC_CORE\|LIRC" \
-              reference-kernel/arch/arm64/configs/ 2>/dev/null
-
-          } | tee ir-deep-results.txt
+          } | tee ir-driver-diff.txt
 
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
-          name: ir-deep-results
-          path: ir-deep-results.txt
+          name: ir-driver-diff
+          path: ir-driver-diff.txt
           retention-days: 7
