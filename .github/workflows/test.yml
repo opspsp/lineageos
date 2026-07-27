@@ -36,79 +36,85 @@ jobs:
       - name: Search IR-related files/folders in BROKEN kernel
         working-directory: broken-kernel
         run: |
-          echo "=================================================="
-          echo " Directories with 'ir' or 'infrared' in their name"
-          echo "=================================================="
-          find . -type d \( \
-              -iname "*infrared*" -o \
-              -iname "*consumer_ir*" -o \
-              -iname "*rc-core*" -o \
-              -iname "*rc_core*" -o \
-              -iname "*lirc*" -o \
-              -iname "*ir-*" -o \
-              -iname "*_ir" -o \
-              -iname "*irda*" \
-          \) 2>/dev/null
+          {
+            echo "=========================================="
+            echo " Directories with ir or infrared in name"
+            echo "=========================================="
+            find . -type d \( \
+                -iname "*infrared*" -o \
+                -iname "*consumer_ir*" -o \
+                -iname "*rc-core*" -o \
+                -iname "*rc_core*" -o \
+                -iname "*lirc*" -o \
+                -iname "*ir-*" -o \
+                -iname "*_ir" -o \
+                -iname "*irda*" \
+            \) 2>/dev/null
 
-          echo ""
-          echo "=================================================="
-          echo " Source files (.c/.h) mentioning IR/infrared APIs"
-          echo "=================================================="
-          grep -rlE "consumer_ir|infrared|rc_register_device|rc-core|IR_TYPE_|lirc_dev|ir_raw_event" \
-              --include="*.c" --include="*.h" . 2>/dev/null
+            echo ""
+            echo "=========================================="
+            echo " Source files mentioning IR/infrared APIs"
+            echo "=========================================="
+            grep -rlE "consumer_ir|infrared|rc_register_device|rc-core|IR_TYPE_|lirc_dev|ir_raw_event" \
+                --include="*.c" --include="*.h" . 2>/dev/null
 
-          echo ""
-          echo "=================================================="
-          echo " Kconfig entries mentioning IR"
-          echo "=================================================="
-          grep -rniE "infrared|consumer.?ir|lirc|rc.core" --include="Kconfig" . 2>/dev/null
+            echo ""
+            echo "=========================================="
+            echo " Kconfig entries mentioning IR"
+            echo "=========================================="
+            grep -rniE "infrared|consumer.?ir|lirc|rc.core" --include="Kconfig" . 2>/dev/null
 
-          echo ""
-          echo "=================================================="
-          echo " Device tree nodes mentioning IR"
-          echo "=================================================="
-          grep -rliE "infrared|consumer-ir|qcom,ir|ir-rx|ir-tx" --include="*.dts" --include="*.dtsi" . 2>/dev/null
+            echo ""
+            echo "=========================================="
+            echo " Device tree nodes mentioning IR"
+            echo "=========================================="
+            grep -rliE "infrared|consumer-ir|qcom,ir|ir-rx|ir-tx" --include="*.dts" --include="*.dtsi" . 2>/dev/null
 
-          echo ""
-          echo "=================================================="
-          echo " defconfig flags mentioning IR (enabled in this build)"
-          echo "=================================================="
-          grep -riE "IR|INFRARED|LIRC" arch/arm64/configs/*defconfig 2>/dev/null | grep -iE "ir|infrared|lirc"
+            echo ""
+            echo "=========================================="
+            echo " defconfig flags mentioning IR"
+            echo "=========================================="
+            grep -riE "IR|INFRARED|LIRC" arch/arm64/configs/*defconfig 2>/dev/null | grep -iE "ir|infrared|lirc"
+          } | tee ../ir-broken-kernel.txt
 
       - name: Search IR-related files/folders in REFERENCE kernel (working IR)
         if: ${{ github.event.inputs.reference_repo != '' }}
         working-directory: reference-kernel
         run: |
-          echo "=================================================="
-          echo " Directories with 'ir' or 'infrared' in their name"
-          echo "=================================================="
-          find . -type d \( \
-              -iname "*infrared*" -o \
-              -iname "*consumer_ir*" -o \
-              -iname "*rc-core*" -o \
-              -iname "*rc_core*" -o \
-              -iname "*lirc*" -o \
-              -iname "*ir-*" -o \
-              -iname "*_ir" -o \
-              -iname "*irda*" \
-          \) 2>/dev/null
+          {
+            echo "=========================================="
+            echo " Directories with ir or infrared in name"
+            echo "=========================================="
+            find . -type d \( \
+                -iname "*infrared*" -o \
+                -iname "*consumer_ir*" -o \
+                -iname "*rc-core*" -o \
+                -iname "*rc_core*" -o \
+                -iname "*lirc*" -o \
+                -iname "*ir-*" -o \
+                -iname "*_ir" -o \
+                -iname "*irda*" \
+            \) 2>/dev/null
 
-          echo ""
-          echo "=================================================="
-          echo " Source files (.c/.h) mentioning IR/infrared APIs"
-          echo "=================================================="
-          grep -rlE "consumer_ir|infrared|rc_register_device|rc-core|IR_TYPE_|lirc_dev|ir_raw_event" \
-              --include="*.c" --include="*.h" . 2>/dev/null
+            echo ""
+            echo "=========================================="
+            echo " Source files mentioning IR/infrared APIs"
+            echo "=========================================="
+            grep -rlE "consumer_ir|infrared|rc_register_device|rc-core|IR_TYPE_|lirc_dev|ir_raw_event" \
+                --include="*.c" --include="*.h" . 2>/dev/null
 
-          echo ""
-          echo "=================================================="
-          echo " Device tree nodes mentioning IR"
-          echo "=================================================="
-          grep -rliE "infrared|consumer-ir|qcom,ir|ir-rx|ir-tx" --include="*.dts" --include="*.dtsi" . 2>/dev/null
+            echo ""
+            echo "=========================================="
+            echo " Device tree nodes mentioning IR"
+            echo "=========================================="
+            grep -rliE "infrared|consumer-ir|qcom,ir|ir-rx|ir-tx" --include="*.dts" --include="*.dtsi" . 2>/dev/null
+          } | tee ../ir-reference-kernel.txt
 
-      - name: Show file sizes / line counts for quick diff planning
-        if: ${{ github.event.inputs.reference_repo != '' }}
-        run: |
-          echo "Use the results above to decide which files/folders need to be replaced."
-          echo "Compare the exact IR file/folder paths between both sources"
-          echo "(e.g. with 'diff -rq' in a follow-up workflow, once paths are confirmed)."
+      - name: Upload IR scan results as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ir-scan-results
+          path: |
+            ir-broken-kernel.txt
+            ir-reference-kernel.txt
+          retention-days: 7
