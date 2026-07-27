@@ -1,10 +1,10 @@
-name: Diff IR content for alioth
+name: Deep IR DTS search for alioth
 
 on:
   workflow_dispatch:
 
 jobs:
-  diff-ir:
+  deep-search:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout broken kernel source
@@ -23,61 +23,68 @@ jobs:
           submodules: recursive
           path: reference-kernel
 
-      - name: Diff alioth DTS files and defconfig
+      - name: Deep IR search
         run: |
-          DTS_PATH="arch/arm64/boot/dts/vendor/qcom"
+          DTS="arch/arm64/boot/dts/vendor/qcom"
           {
             echo "=========================================="
-            echo " DIFF: alioth-sm8250.dtsi"
+            echo " IR blaster SPI node in BROKEN kernel (all dts/dtsi)"
             echo "=========================================="
-            diff broken-kernel/$DTS_PATH/alioth-sm8250.dtsi \
-                 reference-kernel/$DTS_PATH/alioth-sm8250.dtsi || true
+            grep -rn "ir.blaster\|ir_blaster\|ir-spi\|spi.*ir\|IR_SPI\|pwm.*ir\|gpio.*ir.*tx\|ir.*tx" \
+              broken-kernel/$DTS/ 2>/dev/null || echo "NOT FOUND"
 
             echo ""
             echo "=========================================="
-            echo " DIFF: alioth-sm8250-overlay.dts"
+            echo " IR blaster SPI node in REFERENCE kernel (all dts/dtsi)"
             echo "=========================================="
-            diff broken-kernel/$DTS_PATH/alioth-sm8250-overlay.dts \
-                 reference-kernel/$DTS_PATH/alioth-sm8250-overlay.dts || true
+            grep -rn "ir.blaster\|ir_blaster\|ir-spi\|spi.*ir\|IR_SPI\|pwm.*ir\|gpio.*ir.*tx\|ir.*tx" \
+              reference-kernel/$DTS/ 2>/dev/null || echo "NOT FOUND"
 
             echo ""
             echo "=========================================="
-            echo " DIFF: alioth-pinctrl.dtsi"
+            echo " kona.dtsi IR content (BROKEN)"
             echo "=========================================="
-            diff broken-kernel/$DTS_PATH/alioth-pinctrl.dtsi \
-                 reference-kernel/$DTS_PATH/alioth-pinctrl.dtsi || true
+            grep -n "ir\|infrared\|blaster" broken-kernel/$DTS/kona.dtsi 2>/dev/null | \
+              grep -iv "bird\|circuit\|pair\|heir\|repair\|affair\|chair\|flair\|fair\|hair" || echo "NOT FOUND"
 
             echo ""
             echo "=========================================="
-            echo " IR-related grep in alioth-sm8250.dtsi (BROKEN)"
+            echo " kona.dtsi IR content (REFERENCE)"
             echo "=========================================="
-            grep -in "ir\|infrared\|pwm.*ir\|ir.*pwm\|blaster" \
-                 broken-kernel/$DTS_PATH/alioth-sm8250.dtsi || echo "NOT FOUND"
+            grep -n "ir\|infrared\|blaster" reference-kernel/$DTS/kona.dtsi 2>/dev/null | \
+              grep -iv "bird\|circuit\|pair\|heir\|repair\|affair\|chair\|flair\|fair\|hair" || echo "NOT FOUND"
 
             echo ""
             echo "=========================================="
-            echo " IR-related grep in alioth-sm8250.dtsi (REFERENCE)"
+            echo " Any Xiaomi IR driver in techpack (BROKEN)"
             echo "=========================================="
-            grep -in "ir\|infrared\|pwm.*ir\|ir.*pwm\|blaster" \
-                 reference-kernel/$DTS_PATH/alioth-sm8250.dtsi || echo "NOT FOUND"
+            find broken-kernel/techpack/ -name "*.c" -o -name "*.h" | \
+              xargs grep -rl "ir.blaster\|ir_blaster\|consumer.ir" 2>/dev/null || echo "NOT FOUND"
 
             echo ""
             echo "=========================================="
-            echo " DIFF: alioth defconfig (IR flags)"
+            echo " Any Xiaomi IR driver in techpack (REFERENCE)"
             echo "=========================================="
-            BROKEN_DEF=$(find broken-kernel/arch/arm64/configs -name "*alioth*" | head -1)
-            REF_DEF=$(find reference-kernel/arch/arm64/configs -name "*alioth*" | head -1)
-            echo "Broken defconfig: $BROKEN_DEF"
-            echo "Reference defconfig: $REF_DEF"
-            grep -iE "IR|INFRARED|LIRC|RC_CORE|PWM_IR" "$BROKEN_DEF" 2>/dev/null || echo "No IR flags in broken defconfig"
-            echo "---"
-            grep -iE "IR|INFRARED|LIRC|RC_CORE|PWM_IR" "$REF_DEF" 2>/dev/null || echo "No IR flags in reference defconfig"
+            find reference-kernel/techpack/ -name "*.c" -o -name "*.h" | \
+              xargs grep -rl "ir.blaster\|ir_blaster\|consumer.ir" 2>/dev/null || echo "NOT FOUND"
 
-          } | tee ir-diff-results.txt
+            echo ""
+            echo "=========================================="
+            echo " Full defconfig IR flags comparison"
+            echo "=========================================="
+            echo "-- BROKEN defconfigs with IR_SPI --"
+            grep -r "IR_SPI\|IR_GPIO_TX\|IR_PWM_TX\|RC_CORE\|LIRC" \
+              broken-kernel/arch/arm64/configs/ 2>/dev/null
 
-      - name: Upload diff results
+            echo "-- REFERENCE defconfigs with IR_SPI --"
+            grep -r "IR_SPI\|IR_GPIO_TX\|IR_PWM_TX\|RC_CORE\|LIRC" \
+              reference-kernel/arch/arm64/configs/ 2>/dev/null
+
+          } | tee ir-deep-results.txt
+
+      - name: Upload results
         uses: actions/upload-artifact@v4
         with:
-          name: ir-diff-results
-          path: ir-diff-results.txt
+          name: ir-deep-results
+          path: ir-deep-results.txt
           retention-days: 7
