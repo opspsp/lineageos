@@ -299,17 +299,20 @@ build_target() {
 
         echo "[*] Silencing KernelSU logs..."
         find . -type f -name "*.c" \( -path "*kernelsu*" -o -path "*KernelSU*" \) -exec sed -i 's/pr_info(/pr_debug(/g' {} + || true
+        
     fi
 
     # 3. Silence aw8697 vibrator driver logs
     echo "[*] Silencing aw8697 vibrator driver logs..."
     find . -type f \( -name "*aw8697*" \) -exec sed -i 's/dev_info(/dev_dbg(/g; s/pr_info(/pr_debug(/g' {} + || true
-
+    DRV_DIR=$(dirname "$(grep -rl "awinic,aw8697_haptic" --include="*.c" .)"); find "$DRV_DIR" -name "*.c" -exec sed -i 's/dev_info(/dev_dbg(/g; s/pr_info(/pr_debug(/g' {} +
     # 4. Set custom kernel local version (-perf)
     #echo "[*] Setting custom kernel local version..."
     #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
     #scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
+    #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION ""
     scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION ""
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOCALVERSION_AUTO n
 
     # 5. MIUI configurations
     if [ "$OS_TYPE" == "miui" ]; then
