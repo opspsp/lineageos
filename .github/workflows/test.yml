@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       reference_repo:
-        description: "Repo URL of another kernel source where IR works correctly (optional, for comparison)"
+        description: "https://github.com/guranotfound/firefly_xiaomi_sm8250"
         required: false
         type: string
         default: ""
       reference_ref:
-        description: "Branch/tag of the reference repo (optional)"
+        description: "dream"
         required: false
         type: string
         default: "main"
