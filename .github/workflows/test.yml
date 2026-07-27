@@ -1,120 +1,79 @@
-name: Identify IR (Infrared) driver files
+name: Fix IR driver for alioth
 
 on:
   workflow_dispatch:
-    inputs:
-      reference_repo:
-        description: "https://github.com/guranotfound/firefly_xiaomi_sm8250"
-        required: false
-        type: string
-        default: ""
-      reference_ref:
-        description: "dream"
-        required: false
-        type: string
-        default: "main"
 
 jobs:
-  find-ir-files:
+  fix-ir:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout this kernel source (the one with the IR bug)
+      - name: Checkout broken kernel source
         uses: actions/checkout@v4
         with:
+          repository: AstideLabs/android_kernel_xiaomi_sm8250
+          ref: android16-aptusitu
           submodules: recursive
           path: broken-kernel
 
-      - name: Checkout reference kernel source (working IR), if provided
-        if: ${{ github.event.inputs.reference_repo != '' }}
+      - name: Checkout reference kernel source (working IR)
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.inputs.reference_repo }}
-          ref: ${{ github.event.inputs.reference_ref }}
+          repository: IzumiYouka/android_kernel_xiaomi_sm8250
+          ref: dream
           submodules: recursive
           path: reference-kernel
 
-      - name: Search IR-related files/folders in BROKEN kernel
-        working-directory: broken-kernel
+      - name: Scan IR files in both sources
         run: |
           {
             echo "=========================================="
-            echo " Directories with ir or infrared in name"
+            echo " IR files in BROKEN kernel"
             echo "=========================================="
-            find . -type d \( \
-                -iname "*infrared*" -o \
-                -iname "*consumer_ir*" -o \
-                -iname "*rc-core*" -o \
-                -iname "*rc_core*" -o \
-                -iname "*lirc*" -o \
-                -iname "*ir-*" -o \
-                -iname "*_ir" -o \
-                -iname "*irda*" \
-            \) 2>/dev/null
+            grep -rlE "consumer_ir|ir_blaster|qcom,ir|ir-recv|ir-tx" \
+              --include="*.c" --include="*.h" --include="*.dts" \
+              --include="*.dtsi" --include="Kconfig" --include="Makefile" \
+              broken-kernel/ 2>/dev/null
 
             echo ""
             echo "=========================================="
-            echo " Source files mentioning IR/infrared APIs"
+            echo " IR files in REFERENCE kernel"
             echo "=========================================="
-            grep -rlE "consumer_ir|infrared|rc_register_device|rc-core|IR_TYPE_|lirc_dev|ir_raw_event" \
-                --include="*.c" --include="*.h" . 2>/dev/null
+            grep -rlE "consumer_ir|ir_blaster|qcom,ir|ir-recv|ir-tx" \
+              --include="*.c" --include="*.h" --include="*.dts" \
+              --include="*.dtsi" --include="Kconfig" --include="Makefile" \
+              reference-kernel/ 2>/dev/null
 
             echo ""
             echo "=========================================="
-            echo " Kconfig entries mentioning IR"
+            echo " alioth DTS files in BROKEN kernel"
             echo "=========================================="
-            grep -rniE "infrared|consumer.?ir|lirc|rc.core" --include="Kconfig" . 2>/dev/null
+            find broken-kernel/ -type f \( -name "*alioth*" -o -name "*aliothin*" \) \
+              \( -name "*.dts" -o -name "*.dtsi" \) 2>/dev/null
 
             echo ""
             echo "=========================================="
-            echo " Device tree nodes mentioning IR"
+            echo " alioth DTS files in REFERENCE kernel"
             echo "=========================================="
-            grep -rliE "infrared|consumer-ir|qcom,ir|ir-rx|ir-tx" --include="*.dts" --include="*.dtsi" . 2>/dev/null
+            find reference-kernel/ -type f \( -name "*alioth*" -o -name "*aliothin*" \) \
+              \( -name "*.dts" -o -name "*.dtsi" \) 2>/dev/null
 
             echo ""
             echo "=========================================="
-            echo " defconfig flags mentioning IR"
+            echo " IR driver folders in BROKEN kernel"
             echo "=========================================="
-            grep -riE "IR|INFRARED|LIRC" arch/arm64/configs/*defconfig 2>/dev/null | grep -iE "ir|infrared|lirc"
-          } | tee ../ir-broken-kernel.txt
-
-      - name: Search IR-related files/folders in REFERENCE kernel (working IR)
-        if: ${{ github.event.inputs.reference_repo != '' }}
-        working-directory: reference-kernel
-        run: |
-          {
-            echo "=========================================="
-            echo " Directories with ir or infrared in name"
-            echo "=========================================="
-            find . -type d \( \
-                -iname "*infrared*" -o \
-                -iname "*consumer_ir*" -o \
-                -iname "*rc-core*" -o \
-                -iname "*rc_core*" -o \
-                -iname "*lirc*" -o \
-                -iname "*ir-*" -o \
-                -iname "*_ir" -o \
-                -iname "*irda*" \
-            \) 2>/dev/null
+            find broken-kernel/ -type d -iname "*ir*" 2>/dev/null
 
             echo ""
             echo "=========================================="
-            echo " Source files mentioning IR/infrared APIs"
+            echo " IR driver folders in REFERENCE kernel"
             echo "=========================================="
-            grep -rlE "consumer_ir|infrared|rc_register_device|rc-core|IR_TYPE_|lirc_dev|ir_raw_event" \
-                --include="*.c" --include="*.h" . 2>/dev/null
+            find reference-kernel/ -type d -iname "*ir*" 2>/dev/null
 
-            echo ""
-            echo "=========================================="
-            echo " Device tree nodes mentioning IR"
-            echo "=========================================="
-            grep -rliE "infrared|consumer-ir|qcom,ir|ir-rx|ir-tx" --include="*.dts" --include="*.dtsi" . 2>/dev/null
-          } | tee ../ir-reference-kernel.txt
+          } | tee ir-scan-results.txt
 
-      - name: Upload IR scan results as artifact
+      - name: Upload scan results
         uses: actions/upload-artifact@v4
         with:
           name: ir-scan-results
-          path: |
-            ir-broken-kernel.txt
-            ir-reference-kernel.txt
+          path: ir-scan-results.txt
           retention-days: 7
