@@ -262,7 +262,7 @@ build_target() {
     done
 
     echo "[*] Applying Performance & Logging Tweaks..."
-    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_BUF_SHIFT 17
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_BUF_SHIFT 14
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 8
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT 8
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_CONSOLE_LOGLEVEL_DEFAULT 1
