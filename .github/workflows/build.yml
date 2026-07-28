@@ -69,8 +69,8 @@ jobs:
       run: |
         mkdir -p $HOME/zyc-clang
         cd $HOME/zyc-clang
-        wget -q https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260510-release/Clang-16.0.6-20260510.tar.gz
-        tar -zxvf Clang-16.0.6-20260510.tar.gz
+        wget -q https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260716-release/Clang-16.0.6-20260716.tar.gz
+        tar -zxvf Clang-16.0.6-20260716.tar.gz
     - name: Run Build Script
       run: |
         chmod +x build_kernel.sh
