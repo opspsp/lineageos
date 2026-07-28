@@ -87,7 +87,7 @@ UTS_TRUNCATE="cut -b -$UTS_LEN"
   fi
 
 #printf '#define LINUX_COMPILER "%s"\n' "$CC_VERSION, $LD_VERSION"
-) > .tmpcompile
+#) > .tmpcompile
  printf '#define LINUX_COMPILER ""\n'
 ) > .tmpcompile
 
