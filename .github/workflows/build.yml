@@ -92,4 +92,4 @@ jobs:
       with:
         name: APTKernel-${{ github.event.inputs.device }}-${{ github.event.inputs.target_os }}-${{ github.run_id }}
         path: APTKernel_*.zip
-        compression-level: 9 # 已经被 zip 压缩过，无需再二次压缩
+        compression-level: 0
