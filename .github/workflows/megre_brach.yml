@@ -119,7 +119,7 @@ jobs:
               fi
 
               # --- merge everything except workflows ---
-              git merge "origin/$SOURCE" -X ours --no-commit --no-ff || true
+              git merge "origin/$SOURCE" -X theirs --no-commit --no-ff || true
 
               git diff --cached --name-only | grep "^\.github/workflows/" | while read wf; do
                 git checkout HEAD -- "$wf" 2>/dev/null || true
