@@ -26,13 +26,74 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Merge source into target (source wins on conflict)
+      - name: Handle workflow files
+        run: |
+          SOURCE="${{ github.ref_name }}"
+          TARGET="${{ github.event.inputs.target_branch }}"
+
+          # get list of workflow files that differ between source and target
+          CHANGED_WF=$(git diff --name-only "origin/$TARGET" "origin/$SOURCE" \
+            -- .github/workflows/ | grep -E "\.(yml|yaml)$" || true)
+
+          if [[ -z "$CHANGED_WF" ]]; then
+            echo "[=] No workflow file differences"
+            exit 0
+          fi
+
+          git checkout "$TARGET"
+
+          echo "$CHANGED_WF" | while read wf; do
+            [[ -z "$wf" ]] && continue
+            BASENAME=$(basename "$wf")
+            NAME="${BASENAME%.*}"
+            EXT="${BASENAME##*.}"
+            DIRNAME=$(dirname "$wf")
+
+            # get source file content
+            git show "origin/$SOURCE:$wf" > /tmp/src_wf 2>/dev/null || continue
+
+            if [[ -f "$wf" ]]; then
+              if ! cmp -s "/tmp/src_wf" "$wf"; then
+                # same name different content -> rename existing then copy
+                NEW_NAME="${NAME}_${TARGET}.${EXT}"
+                mv "$wf" "${DIRNAME}/${NEW_NAME}"
+                echo "[~] Renamed existing: $BASENAME -> $NEW_NAME"
+              else
+                echo "[=] Identical, skipping: $wf"
+                continue
+              fi
+            fi
+
+            mkdir -p "$DIRNAME"
+            cp /tmp/src_wf "$wf"
+            echo "[+] Copied from $SOURCE: $wf"
+          done
+
+          git checkout "$SOURCE"
+
+      - name: Merge everything except workflows (source wins)
         run: |
           SOURCE="${{ github.ref_name }}"
           TARGET="${{ github.event.inputs.target_branch }}"
 
           git checkout "$TARGET"
-          git merge "origin/$SOURCE" -X ours --no-edit \
-            -m "chore: merge $SOURCE into $TARGET (source priority)"
-          git push origin "$TARGET"
-          echo "[+] Done: $SOURCE merged into $TARGET"
+
+          # merge source into target, source wins on conflict
+          git merge "origin/$SOURCE" -X ours --no-commit --no-ff || true
+
+          # always keep target's workflow files (undo any workflow changes from merge)
+          git diff --cached --name-only | grep "^\.github/workflows/" | while read wf; do
+            git checkout HEAD -- "$wf" 2>/dev/null || true
+          done
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "[=] No changes to commit"
+          else
+            git commit -m "chore: merged from $SOURCE into $TARGET (source priority)"
+            git push origin "$TARGET"
+            echo "[+] Done: $SOURCE merged into $TARGET"
+          fi
+
+          git checkout "$SOURCE"
