@@ -52,7 +52,6 @@ jobs:
         run: |
           INPUT="${{ github.event.inputs.target_branches }}"
           SOURCE_BRANCH="${{ github.ref_name }}"
-
           if [[ "$INPUT" == "*" ]]; then
             BRANCHES=$(git branch -r | grep "origin/" | grep -v "HEAD" | \
               sed 's|origin/||' | tr -d ' ' | grep -v "^${SOURCE_BRANCH}$")
@@ -60,7 +59,6 @@ jobs:
             BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ' | \
               grep -v "^${SOURCE_BRANCH}$")
           fi
-
           echo "branches<<EOF" >> $GITHUB_OUTPUT
           echo "$BRANCHES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -75,22 +73,16 @@ jobs:
         run: |
           MODE="${{ github.event.inputs.mode }}"
           SOURCE="$SOURCE_BRANCH"
-
           while IFS= read -r branch; do
             [[ -z "$branch" ]] && continue
-
             echo "======================================="
             echo "[$MODE] Processing branch: $branch"
             echo "======================================="
-
             if [[ "$MODE" == "merge" ]]; then
-
               # --- handle workflow files ---
               CHANGED_WF=$(git diff --name-only "origin/$branch" "origin/$SOURCE" \
                 -- .github/workflows/ | grep -E "\.(yml|yaml)$" || true)
-
               git checkout "$branch"
-
               if [[ -n "$CHANGED_WF" ]]; then
                 echo "$CHANGED_WF" | while read wf; do
                   [[ -z "$wf" ]] && continue
@@ -98,9 +90,7 @@ jobs:
                   NAME="${BASENAME%.*}"
                   EXT="${BASENAME##*.}"
                   DIRNAME=$(dirname "$wf")
-
                   git show "origin/$SOURCE:$wf" > /tmp/src_wf 2>/dev/null || continue
-
                   if [[ -f "$wf" ]]; then
                     if ! cmp -s "/tmp/src_wf" "$wf"; then
                       NEW_NAME="${NAME}_${SOURCE}.${EXT}"
@@ -111,22 +101,17 @@ jobs:
                       continue
                     fi
                   fi
-
                   mkdir -p "$DIRNAME"
                   cp /tmp/src_wf "$wf"
                   echo "[+] Copied: $wf"
                 done
               fi
-
               # --- merge everything except workflows ---
-              git merge "origin/$SOURCE" -X ours --no-commit --no-ff || true
-
+              git merge "origin/$SOURCE" -X theirs --no-commit --no-ff || true
               git diff --cached --name-only | grep "^\.github/workflows/" | while read wf; do
                 git checkout HEAD -- "$wf" 2>/dev/null || true
               done
-
               git add -A
-
               if git diff --cached --quiet; then
                 echo "[=] No changes on $branch"
               else
@@ -134,18 +119,12 @@ jobs:
                 git push origin "$branch"
                 echo "[+] $branch merged successfully"
               fi
-
             elif [[ "$MODE" == "reset" ]]; then
-
               UPSTREAM_BRANCH="${{ github.event.inputs.upstream_branch }}"
-
               git checkout "$branch"
               git reset --hard "upstream/$UPSTREAM_BRANCH"
               git push --force origin "$branch"
               echo "[+] $branch reset to upstream/$UPSTREAM_BRANCH"
-
             fi
-
             git checkout "$SOURCE"
-
           done <<< "${{ steps.resolve.outputs.branches }}"
