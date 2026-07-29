@@ -139,7 +139,7 @@ jobs:
 
               UPSTREAM_BRANCH="${{ github.event.inputs.upstream_branch }}"
 
-              git checkout "$branch"
+              git checkout -B "$branch" "origin/$branch"
               git reset --hard "upstream/$UPSTREAM_BRANCH"
               git push --force origin "$branch"
               echo "[+] $branch reset to upstream/$UPSTREAM_BRANCH"
