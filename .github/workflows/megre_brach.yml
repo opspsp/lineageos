@@ -1,0 +1,38 @@
+name: Merge source branch into target
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: "Target branch to merge INTO (e.g. branch2)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge source into target (source wins on conflict)
+        run: |
+          SOURCE="${{ github.ref_name }}"
+          TARGET="${{ github.event.inputs.target_branch }}"
+
+          git checkout "$TARGET"
+          git merge "origin/$SOURCE" -X ours --no-edit \
+            -m "chore: merge $SOURCE into $TARGET (source priority)"
+          git push origin "$TARGET"
+          echo "[+] Done: $SOURCE merged into $TARGET"
