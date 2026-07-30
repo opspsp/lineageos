@@ -22,4 +22,4 @@ jobs:
           grep -n "printk\|pr_info\|dev_info\|pr_err\|dev_err" "$DRV_DIR"/*.c 2>/dev/null | head -30
 
           echo "=== searching raw: 0x in ALL drivers ==="
-grep -rn '"raw: 0x\|raw.*0x%' --include="*.c" drivers/ | grep -v "\.o:" | head -20
+          grep -rn '"raw: 0x\|raw.*0x%' --include="*.c" drivers/ | grep -v "\.o:" | head -20
