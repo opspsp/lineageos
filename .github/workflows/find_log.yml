@@ -1,109 +1,22 @@
-name: Find and silence kernel logs
+name: Find raw log source in aw8697
 
 on:
   workflow_dispatch:
 
 jobs:
-  silence:
+  find:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: Search and silence raw/kauditd logs
+      - name: Find raw log source
         run: |
-          {
-            echo "=========================================="
-            echo " Searching for 'raw:' log sources"
-            echo "=========================================="
-            grep -rn '"raw:' --include="*.c" . || echo "NOT FOUND"
+          echo "=== grep 'raw: 0x' in aw8697 files ==="
+          grep -rn "raw: 0x\|\"raw:\"\|raw.*0x" \
+            $(grep -rl "awinic,aw8697" --include="*.c" .) 2>/dev/null || echo "NOT FOUND"
 
-            echo ""
-            echo "=========================================="
-            echo " Searching for kauditd_printk_skb sources"
-            echo "=========================================="
-            grep -rn "kauditd_printk_skb\|kauditd" --include="*.c" . \
-              | grep -v "^Binary" || echo "NOT FOUND"
-
-            echo ""
-            echo "=========================================="
-            echo " Searching for FG smooth_batt_soc sources"
-            echo "=========================================="
-            grep -rn "smooth_batt_soc\|fg_battery_soc_smooth" --include="*.c" . \
-              | grep -v "^Binary" || echo "NOT FOUND"
-
-            echo ""
-            echo "=========================================="
-            echo " Searching for IRQ affine log sources"
-            echo "=========================================="
-            grep -rn "no longer affine" --include="*.c" . \
-              | grep -v "^Binary" || echo "NOT FOUND"
-
-          } | tee silence-scan.txt
-
-      - name: Apply silence patches (idempotent)
-        run: |
-          {
-            echo "=========================================="
-            echo " Applying patches"
-            echo "=========================================="
-
-            # --- raw: (aw8697) ---
-            RAW_FILES=$(grep -rl '"raw:' --include="*.c" drivers/ 2>/dev/null)
-            if [[ -n "$RAW_FILES" ]]; then
-              echo "[*] Patching raw: in: $RAW_FILES"
-              echo "$RAW_FILES" | xargs sed -i \
-                's/pr_info(\s*"raw:/pr_debug("raw:/g;
-                 s/dev_info([^,]*,\s*"raw:/dev_dbg(\1,"raw:/g;
-                 s/aw_dev_info([^,]*,\s*"raw:/aw_dev_dbg(\1,"raw:/g' 2>/dev/null || true
-              echo "[+] raw: patched"
-            else
-              echo "[=] raw: already clean or not found"
-            fi
-
-            # --- kauditd ---
-            AUDIT_FILES=$(grep -rl "kauditd_printk_skb\|kauditd" --include="*.c" kernel/ 2>/dev/null)
-            if [[ -n "$AUDIT_FILES" ]]; then
-              echo "[*] Patching kauditd in: $AUDIT_FILES"
-              echo "$AUDIT_FILES" | xargs sed -i \
-                's/pr_info(\(.*kauditd\)/pr_debug(\1/g;
-                 s/printk(KERN_INFO\(.*kauditd\)/pr_debug(\1/g' 2>/dev/null || true
-              echo "[+] kauditd patched"
-            else
-              echo "[=] kauditd already clean or not found"
-            fi
-
-            # --- IRQ affine ---
-            IRQ_FILES=$(grep -rl "no longer affine" --include="*.c" kernel/ 2>/dev/null)
-            if [[ -n "$IRQ_FILES" ]]; then
-              echo "[*] Patching IRQ affine in: $IRQ_FILES"
-              echo "$IRQ_FILES" | xargs sed -i \
-                's/pr_info(\(.*affine\)/pr_debug(\1/g;
-                 s/printk(KERN_INFO\(.*affine\)/pr_debug(\1/g' 2>/dev/null || true
-              echo "[+] IRQ affine patched"
-            else
-              echo "[=] IRQ affine already clean or not found"
-            fi
-
-            # --- FG smooth ---
-            FG_FILES=$(grep -rl "smooth_batt_soc\|fg_battery_soc_smooth" --include="*.c" . 2>/dev/null)
-            if [[ -n "$FG_FILES" ]]; then
-              echo "[*] Patching FG smooth in: $FG_FILES"
-              echo "$FG_FILES" | xargs sed -i \
-                's/pr_info(\(.*smooth\)/pr_debug(\1/g;
-                 s/dev_info(\(.*smooth\)/dev_dbg(\1/g' 2>/dev/null || true
-              echo "[+] FG smooth patched"
-            else
-              echo "[=] FG smooth already clean or not found"
-            fi
-
-          } | tee -a silence-scan.txt
-
-      - name: Upload scan and patch log
-        uses: actions/upload-artifact@v4
-        with:
-          name: silence-logs-report
-          path: silence-scan.txt
-          retention-days: 7
+          echo ""
+          echo "=== all printk/pr_info/dev_info remaining ==="
+          DRV_DIR=$(dirname "$(grep -rl "awinic,aw8697_haptic" --include="*.c" .)")
+          grep -n "printk\|pr_info\|dev_info\|pr_err\|dev_err" "$DRV_DIR"/*.c 2>/dev/null | head -30
