@@ -285,6 +285,31 @@ build_target() {
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
     scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_FS
     scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
+    # Begin: Disable unnecessary configs (safe for AOSP/alioth)
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCHEDSTATS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_KFENCE
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_PROFILING
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_MAGIC_SYSRQ
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKCONFIG
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKCONFIG_PROC
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKHEADERS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCSI_CONSTANTS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCSI_LOGGING
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IP_ROUTE_VERBOSE
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_VIDEO_ADV_DEBUG
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SKY2
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SMSC911X
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_USB_ISP1760
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_XFRM_STATISTICS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_RAS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_EDAC
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_ALIGN_RODATA
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCHED_STACK_END_CHECK
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CC_WERROR
+# End: Disable unnecessary configs
+    
+    
 
     # 1. Baseband-guard configuration (Always applied)
     echo "[*] Injecting Baseband-guard configuration..."
