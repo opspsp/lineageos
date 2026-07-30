@@ -370,10 +370,9 @@ SOCINFO="drivers/soc/qcom/socinfo.c"
 [ -f "$SOCINFO" ] && sed -i 's/pr_info(/pr_debug(/g' "$SOCINFO" && echo "[+] socinfo silenced."
 
 # Silence kauditd and audit_log_lost
-AUDIT="kernel/audit.c"
+AUDIT="./kernel/audit.c"
 [ -f "$AUDIT" ] && sed -i \
     -e 's/kauditd_printk_skb(skb)/((void)0)/g' \
-
     "$AUDIT" && echo "[+] audit silenced."
 
 # Silence IRQ affine log
