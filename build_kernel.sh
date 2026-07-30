@@ -373,7 +373,7 @@ SOCINFO="drivers/soc/qcom/socinfo.c"
 AUDIT="kernel/audit.c"
 [ -f "$AUDIT" ] && sed -i \
     -e 's/kauditd_printk_skb(skb)/((void)0)/g' \
-    -e 's/audit_log_lost(/\/\/ audit_log_lost(/g' \
+
     "$AUDIT" && echo "[+] audit silenced."
 
 # Silence IRQ affine log
