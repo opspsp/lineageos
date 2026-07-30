@@ -328,44 +328,50 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CC_WERROR
         
     fi
 
-    # 3. Silence aw8697 vibrator driver logs
-    #echo "[*] Silencing aw8697 vibrator driver logs..."
-    # Silence aw8697 haptic driver logs
-    AW_DIR="./drivers/input/misc/aw8697_haptic"
-    if [ -d "$AW_DIR" ]; then
-    sed -i \
+# Silence aw8697 haptic driver logs
+AW_DIR="./drivers/input/misc/aw8697_haptic"
+if [ -d "$AW_DIR" ]; then
+    echo "[*] Silencing aw8697 logs..."
+    find "$AW_DIR" -name "*.c" -exec sed -i \
         -e '/^#define DEBUG/d' \
         -e 's/pr_info(/pr_debug(/g' \
         -e 's/aw_dev_info(/aw_dev_dbg(/g' \
-        "$AW_DIR"/*.c
-    fi
-    # Silence FG smooth tracking logs
+    {} +
+    echo "[+] aw8697 silenced."
+fi
+
+# Silence FG fuel gauge logs
 for f in \
     drivers/power/supply/qcom/qpnp-fg-gen4.c \
-    drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c; do
-    [ -f "$f" ] && sed -i 's/pr_info(/pr_debug(/g' "$f"
+    drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c \
+    drivers/power/supply/qcom/fg-util.c; do
+    [ -f "$f" ] && sed -i \
+        -e 's/pr_info(/pr_debug(/g' \
+        -e 's/FG_POWER_SUPPLY, "raw:/FG_STATUS, "raw:/g' \
+        "$f" && echo "[+] silenced: $f"
 done
 
-# Silence fg-util raw: log
-FG_UTIL="drivers/power/supply/qcom/fg-util.c"
-[ -f "$FG_UTIL" ] && sed -i \
-    's/fg_dbg(fg, FG_POWER_SUPPLY, "raw:/fg_dbg(fg, FG_STATUS, "raw:/g' "$FG_UTIL"
+# Silence qed debug (raw: 0xab source)
+QED="drivers/net/ethernet/qlogic/qed/qed_debug.c"
+[ -f "$QED" ] && sed -i 's/pr_info(/pr_debug(/g' "$QED" && echo "[+] qed_debug silenced."
+
+# Silence socinfo logs
+SOCINFO="drivers/soc/qcom/socinfo.c"
+[ -f "$SOCINFO" ] && sed -i 's/pr_info(/pr_debug(/g' "$SOCINFO" && echo "[+] socinfo silenced."
+
+# Silence kauditd logs
+AUDIT="kernel/audit.c"
+[ -f "$AUDIT" ] && sed -i \
+    -e 's/pr_info(\(.*kauditd\)/pr_debug(\1/g' \
+    -e 's/printk(KERN_INFO\(.*kauditd\)/pr_debug(\1/g' \
+    "$AUDIT" && echo "[+] kauditd silenced."
 
 # Silence IRQ affine log
-IRQ_FILE="kernel/irq/cpuhotplug.c"
-[ -f "$IRQ_FILE" ] && sed -i \
-    's/pr_info_ratelimited("IRQ %u: no longer affine/pr_debug("IRQ %u: no longer affine/g' "$IRQ_FILE"
-    # Silence kauditd logs
-AUDIT_FILE="kernel/audit.c"
-if grep -q "kauditd_printk_skb" "$AUDIT_FILE" 2>/dev/null; then
-    echo "[*] Silencing kauditd logs..."
-    sed -i 's/pr_info(\(.*kauditd\)/pr_debug(\1/g' "$AUDIT_FILE"
-    sed -i 's/printk(KERN_INFO\(.*kauditd\)/pr_debug(\1/g' "$AUDIT_FILE"
-    echo "[+] kauditd silenced."
-else
-    echo "[*] kauditd already silenced, skipping."
-fi
- 
+IRQ="kernel/irq/cpuhotplug.c"
+[ -f "$IRQ" ] && sed -i \
+    's/pr_info_ratelimited("IRQ %u: no longer affine/pr_debug("IRQ %u: no longer affine/g' \
+    "$IRQ" && echo "[+] IRQ affine silenced."
+
    # 4. Set custom kernel local version (-perf)
     #echo "[*] Setting custom kernel local version..."
     #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
