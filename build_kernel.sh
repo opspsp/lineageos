@@ -336,7 +336,7 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CC_WERROR
         
     fi
 
-  # Silence aw8697 haptic driver logs
+# Silence aw8697 haptic driver logs
 AW_DIR="./drivers/input/misc/aw8697_haptic"
 if [ -d "$AW_DIR" ]; then
     echo "[*] Silencing aw8697 logs..."
@@ -358,30 +358,29 @@ for f in \
         "$f" && echo "[+] silenced: $f"
 done
 
-# Silence qed debug (raw: 0xab/0x8f source)
+# Silence qed debug (raw: 0xab/0xaa/0xa9 source)
 QED="drivers/net/ethernet/qlogic/qed/qed_debug.c"
 [ -f "$QED" ] && sed -i \
-    -e 's/DP_VERBOSE(/\/\/ DP_VERBOSE(/g' \
-    -e 's/DP_INFO(/\/\/ DP_INFO(/g' \
+    -e '/"raw: 0x%016llx/d' \
+    -e '/"raw: 0x%01x%08x%08x/d' \
     "$QED" && echo "[+] qed_debug silenced."
 
 # Silence socinfo logs
 SOCINFO="drivers/soc/qcom/socinfo.c"
 [ -f "$SOCINFO" ] && sed -i 's/pr_info(/pr_debug(/g' "$SOCINFO" && echo "[+] socinfo silenced."
 
-# Silence kauditd
+# Silence kauditd and audit_log_lost
 AUDIT="kernel/audit.c"
 [ -f "$AUDIT" ] && sed -i \
-    's/kauditd_printk_skb(skb)/((void)0)/g' \
-    "$AUDIT" && echo "[+] kauditd silenced."
+    -e 's/kauditd_printk_skb(skb)/((void)0)/g' \
+    -e 's/audit_log_lost(/\/\/ audit_log_lost(/g' \
+    "$AUDIT" && echo "[+] audit silenced."
 
 # Silence IRQ affine log
 IRQ="kernel/irq/cpuhotplug.c"
 [ -f "$IRQ" ] && sed -i \
     's/pr_info_ratelimited("IRQ %u: no longer affine/pr_debug("IRQ %u: no longer affine/g' \
     "$IRQ" && echo "[+] IRQ affine silenced."
-
-
 
     # 5. MIUI configurations
     if [ "$OS_TYPE" == "miui" ]; then
