@@ -1,4 +1,4 @@
-name: Find raw log source in aw8697
+name: Find remaining log sources
 
 on:
   workflow_dispatch:
@@ -10,16 +10,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find raw log source
+      - name: Find remaining log sources
         run: |
-          echo "=== grep 'raw: 0x' in aw8697 files ==="
-          grep -rn "raw: 0x\|\"raw:\"\|raw.*0x" \
-            $(grep -rl "awinic,aw8697" --include="*.c" .) 2>/dev/null || echo "NOT FOUND"
+          {
+            echo "=========================================="
+            echo " raw: 0x in qed_debug.c"
+            echo "=========================================="
+            grep -n "raw:" drivers/net/ethernet/qlogic/qed/qed_debug.c 2>/dev/null || echo "NOT FOUND"
 
-          echo ""
-          echo "=== all printk/pr_info/dev_info remaining ==="
-          DRV_DIR=$(dirname "$(grep -rl "awinic,aw8697_haptic" --include="*.c" .)")
-          grep -n "printk\|pr_info\|dev_info\|pr_err\|dev_err" "$DRV_DIR"/*.c 2>/dev/null | head -30
+            echo ""
+            echo "=========================================="
+            echo " All print functions in qed_debug.c"
+            echo "=========================================="
+            grep -n "pr_info\|printk\|pr_err\|dev_info\|dev_err" \
+              drivers/net/ethernet/qlogic/qed/qed_debug.c 2>/dev/null | head -20 || echo "NOT FOUND"
 
-          echo "=== searching raw: 0x in ALL drivers ==="
-          grep -rn '"raw: 0x\|raw.*0x%' --include="*.c" drivers/ | grep -v "\.o:" | head -20
+            echo ""
+            echo "=========================================="
+            echo " FG fg_gen4 remaining logs"
+            echo "=========================================="
+            grep -n "pr_info\|FG_POWER_SUPPLY\|soc_scale" \
+              drivers/power/supply/qcom/qpnp-fg-gen4.c 2>/dev/null | head -20 || echo "NOT FOUND"
+
+            echo ""
+            echo "=========================================="
+            echo " kauditd in kernel/audit.c"
+            echo "=========================================="
+            grep -n "kauditd\|printk_skb" kernel/audit.c 2>/dev/null | head -20 || echo "NOT FOUND"
+
+            echo ""
+            echo "=========================================="
+            echo " aw8697 remaining pr_info and aw_dev_info"
+            echo "=========================================="
+            grep -n "pr_info\|aw_dev_info\|#define DEBUG" \
+              drivers/input/misc/aw8697_haptic/aw8697.c 2>/dev/null | head -20 || echo "NOT FOUND"
+
+          } | tee remaining-logs.txt
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: remaining-logs
+          path: remaining-logs.txt
+          retention-days: 7
