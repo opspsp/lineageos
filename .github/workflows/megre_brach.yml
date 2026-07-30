@@ -13,10 +13,10 @@ on:
           - sync
         default: merge
       target_branches:
-        description: "Target branches: * for all, or comma-separated (e.g. branch1,branch2)"
-        required: true
+        description: "Target branches: * for all, comma-separated, or empty for current branch (sync mode)"
+        required: false
         type: string
-        default: "*"
+        default: ""
       upstream_url:
         description: "[reset/sync] Upstream repo URL (e.g. https://github.com/owner/repo)"
         required: false
@@ -52,14 +52,31 @@ jobs:
         id: resolve
         run: |
           INPUT="${{ github.event.inputs.target_branches }}"
+          MODE="${{ github.event.inputs.mode }}"
           SOURCE_BRANCH="${{ github.ref_name }}"
 
-          if [[ "$INPUT" == "*" ]]; then
-            BRANCHES=$(git branch -r | grep "origin/" | grep -v "HEAD" | \
-              sed 's|origin/||' | tr -d ' ' | grep -v "^${SOURCE_BRANCH}$")
+          if [[ "$MODE" == "sync" ]]; then
+            # sync mode: empty or * = all branches including current
+            # sync compares with upstream, not with source branch
+            if [[ -z "$INPUT" ]]; then
+              # only current branch
+              BRANCHES="$SOURCE_BRANCH"
+            elif [[ "$INPUT" == "*" ]]; then
+              # all branches including current
+              BRANCHES=$(git branch -r | grep "origin/" | grep -v "HEAD" | \
+                sed 's|origin/||' | tr -d ' ')
+            else
+              BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ')
+            fi
           else
-            BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ' | \
-              grep -v "^${SOURCE_BRANCH}$")
+            # merge/reset mode: exclude current branch
+            if [[ -z "$INPUT" || "$INPUT" == "*" ]]; then
+              BRANCHES=$(git branch -r | grep "origin/" | grep -v "HEAD" | \
+                sed 's|origin/||' | tr -d ' ' | grep -v "^${SOURCE_BRANCH}$")
+            else
+              BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ' | \
+                grep -v "^${SOURCE_BRANCH}$")
+            fi
           fi
 
           echo "branches<<EOF" >> $GITHUB_OUTPUT
@@ -70,7 +87,7 @@ jobs:
         if: ${{ github.event.inputs.mode == 'reset' || github.event.inputs.mode == 'sync' }}
         run: |
           git remote add upstream "${{ github.event.inputs.upstream_url }}"
-          git fetch upstream "${{ github.event.inputs.upstream_branch }}"
+          git fetch upstream --no-tags
 
       - name: Execute action on each branch
         run: |
@@ -144,14 +161,15 @@ jobs:
 
             elif [[ "$MODE" == "sync" ]]; then
 
-              git checkout "$branch"
+              # checkout local branch tracking origin
+              git checkout -B "$branch" "origin/$branch" 2>/dev/null || git checkout "$branch"
 
-              # rebase: upstream commits first, then our commits on top
+              # rebase on upstream: upstream changes come first, our commits on top
               if git rebase "upstream/$UPSTREAM_BRANCH" -X ours --no-stat; then
                 git push --force-with-lease origin "$branch"
-                echo "[+] $branch synced with upstream (your changes preserved)"
+                echo "[+] $branch synced (your changes preserved)"
               else
-                echo "[!] Rebase conflict on $branch - skipping conflicted commits"
+                echo "[!] Conflict on $branch - applying ours and skipping"
                 git rebase --skip || git rebase --abort
                 git push --force-with-lease origin "$branch" || true
               fi
