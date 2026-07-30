@@ -372,7 +372,7 @@ SOCINFO="drivers/soc/qcom/socinfo.c"
 # Silence kauditd
 AUDIT="kernel/audit.c"
 [ -f "$AUDIT" ] && sed -i \
-    '/kauditd_printk_skb(struct sk_buff \*skb)/,/^}$/{s/pr_info\|printk\|vprintk/\/\/ &/g}' \
+    's/kauditd_printk_skb(skb)/((void)0)/g' \
     "$AUDIT" && echo "[+] kauditd silenced."
 
 # Silence IRQ affine log
