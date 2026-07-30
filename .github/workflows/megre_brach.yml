@@ -10,6 +10,7 @@ on:
         options:
           - merge
           - reset
+          - sync
         default: merge
       target_branches:
         description: "Target branches: * for all, or comma-separated (e.g. branch1,branch2)"
@@ -17,12 +18,12 @@ on:
         type: string
         default: "*"
       upstream_url:
-        description: "[reset only] Upstream repo URL (e.g. https://github.com/owner/repo)"
+        description: "[reset/sync] Upstream repo URL (e.g. https://github.com/owner/repo)"
         required: false
         type: string
         default: ""
       upstream_branch:
-        description: "[reset only] Upstream branch to reset to"
+        description: "[reset/sync] Upstream branch"
         required: false
         type: string
         default: ""
@@ -65,8 +66,8 @@ jobs:
           echo "$BRANCHES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Fetch upstream (reset mode only)
-        if: ${{ github.event.inputs.mode == 'reset' }}
+      - name: Fetch upstream (reset/sync mode only)
+        if: ${{ github.event.inputs.mode == 'reset' || github.event.inputs.mode == 'sync' }}
         run: |
           git remote add upstream "${{ github.event.inputs.upstream_url }}"
           git fetch upstream "${{ github.event.inputs.upstream_branch }}"
@@ -75,6 +76,7 @@ jobs:
         run: |
           MODE="${{ github.event.inputs.mode }}"
           SOURCE="$SOURCE_BRANCH"
+          UPSTREAM_BRANCH="${{ github.event.inputs.upstream_branch }}"
 
           while IFS= read -r branch; do
             [[ -z "$branch" ]] && continue
@@ -85,7 +87,6 @@ jobs:
 
             if [[ "$MODE" == "merge" ]]; then
 
-              # --- handle workflow files ---
               CHANGED_WF=$(git diff --name-only "origin/$branch" "origin/$SOURCE" \
                 -- .github/workflows/ | grep -E "\.(yml|yaml)$" || true)
 
@@ -118,7 +119,6 @@ jobs:
                 done
               fi
 
-              # --- merge everything except workflows ---
               git merge "origin/$SOURCE" -X theirs --no-commit --no-ff || true
 
               git diff --cached --name-only | grep "^\.github/workflows/" | while read wf; do
@@ -137,12 +137,24 @@ jobs:
 
             elif [[ "$MODE" == "reset" ]]; then
 
-              UPSTREAM_BRANCH="${{ github.event.inputs.upstream_branch }}"
-
               git checkout -B "$branch" "origin/$branch"
               git reset --hard "upstream/$UPSTREAM_BRANCH"
               git push --force origin "$branch"
               echo "[+] $branch reset to upstream/$UPSTREAM_BRANCH"
+
+            elif [[ "$MODE" == "sync" ]]; then
+
+              git checkout "$branch"
+
+              # rebase: upstream commits first, then our commits on top
+              if git rebase "upstream/$UPSTREAM_BRANCH" -X ours --no-stat; then
+                git push --force-with-lease origin "$branch"
+                echo "[+] $branch synced with upstream (your changes preserved)"
+              else
+                echo "[!] Rebase conflict on $branch - skipping conflicted commits"
+                git rebase --skip || git rebase --abort
+                git push --force-with-lease origin "$branch" || true
+              fi
 
             fi
 
