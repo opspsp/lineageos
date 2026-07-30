@@ -284,7 +284,7 @@ build_target() {
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_FREEZER
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
     scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_FS
-    scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
+    #scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
     # Begin: Disable unnecessary configs (safe for AOSP/alioth)
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCHEDSTATS
@@ -355,6 +355,16 @@ FG_UTIL="drivers/power/supply/qcom/fg-util.c"
 IRQ_FILE="kernel/irq/cpuhotplug.c"
 [ -f "$IRQ_FILE" ] && sed -i \
     's/pr_info_ratelimited("IRQ %u: no longer affine/pr_debug("IRQ %u: no longer affine/g' "$IRQ_FILE"
+    # Silence kauditd logs
+AUDIT_FILE="kernel/audit.c"
+if grep -q "kauditd_printk_skb" "$AUDIT_FILE" 2>/dev/null; then
+    echo "[*] Silencing kauditd logs..."
+    sed -i 's/pr_info(\(.*kauditd\)/pr_debug(\1/g' "$AUDIT_FILE"
+    sed -i 's/printk(KERN_INFO\(.*kauditd\)/pr_debug(\1/g' "$AUDIT_FILE"
+    echo "[+] kauditd silenced."
+else
+    echo "[*] kauditd already silenced, skipping."
+fi
  
    # 4. Set custom kernel local version (-perf)
     #echo "[*] Setting custom kernel local version..."
