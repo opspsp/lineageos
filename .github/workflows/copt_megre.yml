@@ -1,10 +1,14 @@
-name: Copy changes to other branches
+name: Copy my changes to other branches
 
 on:
   workflow_dispatch:
     inputs:
       target_branches:
         description: "Target branches: * for all, or comma-separated (e.g. branch1,branch2)"
+        required: true
+        type: string
+      my_username:
+        description: "Your GitHub username to detect your commits"
         required: true
         type: string
 
@@ -28,6 +32,15 @@ jobs:
           echo "TODAY=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
           echo "SOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
 
+      - name: Detect my changed files
+        run: |
+          USERNAME="${{ github.event.inputs.my_username }}"
+          git log --author="$USERNAME" --pretty=format:"%H" | \
+            xargs -I{} git diff-tree --no-commit-id -r --name-only {} | \
+            sort -u > /tmp/files_to_copy.txt
+          echo "[*] Files changed by $USERNAME:"
+          cat /tmp/files_to_copy.txt
+
       - name: Resolve target branches
         id: resolve
         run: |
@@ -44,7 +57,16 @@ jobs:
           echo "$BRANCHES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Copy changes to each target branch
+      - name: Save source files
+        run: |
+          mkdir -p /tmp/source_files
+          while read f; do
+            [[ -f "$f" ]] || continue
+            mkdir -p "/tmp/source_files/$(dirname $f)"
+            cp "$f" "/tmp/source_files/$f"
+          done < /tmp/files_to_copy.txt
+
+      - name: Copy to each target branch
         run: |
           SOURCE_BRANCH="${{ github.ref_name }}"
           while IFS= read -r branch; do
@@ -52,19 +74,8 @@ jobs:
             echo "======================================="
             echo "Copying to branch: $branch"
             echo "======================================="
-            CHANGED=$(git diff --name-only "origin/$branch" "origin/$SOURCE_BRANCH" || true)
-            if [[ -z "$CHANGED" ]]; then
-              echo "[=] No differences with $branch - skipping"
-              continue
-            fi
-            mkdir -p /tmp/source_files
-            echo "$CHANGED" | while read f; do
-              [[ -f "$f" ]] || continue
-              mkdir -p "/tmp/source_files/$(dirname $f)"
-              cp "$f" "/tmp/source_files/$f"
-            done
             git checkout "$branch" || { git checkout "$SOURCE_BRANCH"; continue; }
-            echo "$CHANGED" | while read relpath; do
+            while read relpath; do
               [[ -z "$relpath" ]] && continue
               srcfile="/tmp/source_files/$relpath"
               [[ -f "$srcfile" ]] || continue
@@ -83,15 +94,14 @@ jobs:
                 cp "$srcfile" "$relpath"
               fi
               echo "[+] Copied: $relpath"
-            done
+            done < /tmp/files_to_copy.txt
             git add -A
             if git diff --cached --quiet; then
               echo "[=] No changes on $branch"
             else
-              git commit -m "chore: sync from $SOURCE_BRANCH [$TODAY]"
+              git commit -m "chore: sync my changes from $SOURCE_BRANCH [$TODAY]"
               git push origin "$branch"
               echo "[+] $branch updated"
             fi
             git checkout "$SOURCE_BRANCH"
-            rm -rf /tmp/source_files
           done <<< "${{ steps.resolve.outputs.branches }}"
