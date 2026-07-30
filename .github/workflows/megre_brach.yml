@@ -13,7 +13,7 @@ on:
           - sync
         default: merge
       target_branches:
-        description: "Target branches: * for all, comma-separated, or empty for current branch (sync mode)"
+        description: "merge: * or comma-separated (default *) | sync: empty=current branch, * for all | reset: comma-separated"
         required: false
         type: string
         default: ""
@@ -56,20 +56,16 @@ jobs:
           SOURCE_BRANCH="${{ github.ref_name }}"
 
           if [[ "$MODE" == "sync" ]]; then
-            # sync mode: empty or * = all branches including current
-            # sync compares with upstream, not with source branch
             if [[ -z "$INPUT" ]]; then
-              # only current branch
               BRANCHES="$SOURCE_BRANCH"
             elif [[ "$INPUT" == "*" ]]; then
-              # all branches including current
               BRANCHES=$(git branch -r | grep "origin/" | grep -v "HEAD" | \
                 sed 's|origin/||' | tr -d ' ')
             else
               BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ')
             fi
-          else
-            # merge/reset mode: exclude current branch
+
+          elif [[ "$MODE" == "merge" ]]; then
             if [[ -z "$INPUT" || "$INPUT" == "*" ]]; then
               BRANCHES=$(git branch -r | grep "origin/" | grep -v "HEAD" | \
                 sed 's|origin/||' | tr -d ' ' | grep -v "^${SOURCE_BRANCH}$")
@@ -77,6 +73,13 @@ jobs:
               BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ' | \
                 grep -v "^${SOURCE_BRANCH}$")
             fi
+
+          elif [[ "$MODE" == "reset" ]]; then
+            if [[ -z "$INPUT" ]]; then
+              echo "[!] reset mode requires target_branches - exiting"
+              exit 1
+            fi
+            BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ')
           fi
 
           echo "branches<<EOF" >> $GITHUB_OUTPUT
@@ -161,10 +164,8 @@ jobs:
 
             elif [[ "$MODE" == "sync" ]]; then
 
-              # checkout local branch tracking origin
               git checkout -B "$branch" "origin/$branch" 2>/dev/null || git checkout "$branch"
 
-              # rebase on upstream: upstream changes come first, our commits on top
               if git rebase "upstream/$UPSTREAM_BRANCH" -X ours --no-stat; then
                 git push --force-with-lease origin "$branch"
                 echo "[+] $branch synced (your changes preserved)"
