@@ -284,6 +284,14 @@ build_target() {
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_FREEZER
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
     scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_FS
+# 4. Set custom kernel local version (-perf)
+    #echo "[*] Setting custom kernel local version..."
+    #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
+    #scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
+    #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION ""
+    scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION ""
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOCALVERSION_AUTO n
+
     
     # Begin: Disable unnecessary configs (safe for AOSP/alioth)
 #scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
@@ -328,15 +336,14 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CC_WERROR
         
     fi
 
-# Silence aw8697 haptic driver logs
+  # Silence aw8697 haptic driver logs
 AW_DIR="./drivers/input/misc/aw8697_haptic"
 if [ -d "$AW_DIR" ]; then
     echo "[*] Silencing aw8697 logs..."
-    find "$AW_DIR" -name "*.c" -exec sed -i \
+    find "$AW_DIR" -name "*.c" | xargs sed -i \
         -e '/^#define DEBUG/d' \
         -e 's/pr_info(/pr_debug(/g' \
-        -e 's/aw_dev_info(/aw_dev_dbg(/g' \
-    {} +
+        -e 's/aw_dev_info(/aw_dev_dbg(/g'
     echo "[+] aw8697 silenced."
 fi
 
@@ -351,19 +358,21 @@ for f in \
         "$f" && echo "[+] silenced: $f"
 done
 
-# Silence qed debug (raw: 0xab source)
+# Silence qed debug (raw: 0xab/0x8f source)
 QED="drivers/net/ethernet/qlogic/qed/qed_debug.c"
-[ -f "$QED" ] && sed -i 's/pr_info(/pr_debug(/g' "$QED" && echo "[+] qed_debug silenced."
+[ -f "$QED" ] && sed -i \
+    -e 's/DP_VERBOSE(/\/\/ DP_VERBOSE(/g' \
+    -e 's/DP_INFO(/\/\/ DP_INFO(/g' \
+    "$QED" && echo "[+] qed_debug silenced."
 
 # Silence socinfo logs
 SOCINFO="drivers/soc/qcom/socinfo.c"
 [ -f "$SOCINFO" ] && sed -i 's/pr_info(/pr_debug(/g' "$SOCINFO" && echo "[+] socinfo silenced."
 
-# Silence kauditd logs
+# Silence kauditd
 AUDIT="kernel/audit.c"
 [ -f "$AUDIT" ] && sed -i \
-    -e 's/pr_info(\(.*kauditd\)/pr_debug(\1/g' \
-    -e 's/printk(KERN_INFO\(.*kauditd\)/pr_debug(\1/g' \
+    '/kauditd_printk_skb(struct sk_buff \*skb)/,/^}$/{s/pr_info\|printk\|vprintk/\/\/ &/g}' \
     "$AUDIT" && echo "[+] kauditd silenced."
 
 # Silence IRQ affine log
@@ -372,13 +381,7 @@ IRQ="kernel/irq/cpuhotplug.c"
     's/pr_info_ratelimited("IRQ %u: no longer affine/pr_debug("IRQ %u: no longer affine/g' \
     "$IRQ" && echo "[+] IRQ affine silenced."
 
-   # 4. Set custom kernel local version (-perf)
-    #echo "[*] Setting custom kernel local version..."
-    #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
-    #scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
-    #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION ""
-    scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION ""
-    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOCALVERSION_AUTO n
+
 
     # 5. MIUI configurations
     if [ "$OS_TYPE" == "miui" ]; then
