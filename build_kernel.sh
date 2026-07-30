@@ -284,6 +284,7 @@ build_target() {
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_FREEZER
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
     scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_FS
+    scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
 
     # 1. Baseband-guard configuration (Always applied)
     echo "[*] Injecting Baseband-guard configuration..."
@@ -313,6 +314,23 @@ build_target() {
         -e 's/aw_dev_info(/aw_dev_dbg(/g' \
         "$AW_DIR"/*.c
     fi
+    # Silence FG smooth tracking logs
+for f in \
+    drivers/power/supply/qcom/qpnp-fg-gen4.c \
+    drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c; do
+    [ -f "$f" ] && sed -i 's/pr_info(/pr_debug(/g' "$f"
+done
+
+# Silence fg-util raw: log
+FG_UTIL="drivers/power/supply/qcom/fg-util.c"
+[ -f "$FG_UTIL" ] && sed -i \
+    's/fg_dbg(fg, FG_POWER_SUPPLY, "raw:/fg_dbg(fg, FG_STATUS, "raw:/g' "$FG_UTIL"
+
+# Silence IRQ affine log
+IRQ_FILE="kernel/irq/cpuhotplug.c"
+[ -f "$IRQ_FILE" ] && sed -i \
+    's/pr_info_ratelimited("IRQ %u: no longer affine/pr_debug("IRQ %u: no longer affine/g' "$IRQ_FILE"
+ 
    # 4. Set custom kernel local version (-perf)
     #echo "[*] Setting custom kernel local version..."
     #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
