@@ -359,10 +359,10 @@ for f in \
 done
 
 # Silence qed debug (raw: 0xab/0xaa/0xa9 source)
-QED="drivers/net/ethernet/qlogic/qed/qed_debug.c"
+QED="./drivers/net/ethernet/qlogic/qed/qed_debug.c"
 [ -f "$QED" ] && sed -i \
-    -e '/"raw: 0x%016llx/d' \
-    -e '/"raw: 0x%01x%08x%08x/d' \
+    -e 's/.*"raw: 0x%016llx.*$/\/\/ &/' \
+    -e 's/.*"raw: 0x%01x%08x%08x.*$/\/\/ &/' \
     "$QED" && echo "[+] qed_debug silenced."
 
 # Silence socinfo logs
@@ -373,6 +373,7 @@ SOCINFO="drivers/soc/qcom/socinfo.c"
 AUDIT="./kernel/audit.c"
 [ -f "$AUDIT" ] && sed -i \
     -e 's/kauditd_printk_skb(skb)/((void)0)/g' \
+    -e 's/audit_log_lost("[^"]*"[^;]*);/((void)0);/g' \
     "$AUDIT" && echo "[+] audit silenced."
 
 # Silence IRQ affine log
