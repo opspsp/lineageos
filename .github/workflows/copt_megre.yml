@@ -7,20 +7,6 @@ on:
         description: "Target branches: * for all, or comma-separated (e.g. branch1,branch2)"
         required: true
         type: string
-        default: "*"
-      upstream_url:
-        description: "Upstream repo URL to detect your changes (e.g. https://github.com/owner/repo)"
-        required: true
-        type: string
-      upstream_branch:
-        description: "Upstream branch to compare against"
-        required: true
-        type: string
-      extra_paths:
-        description: "Specific files/folders (comma-separated). Leave empty or * to auto-detect all your changes"
-        required: false
-        type: string
-        default: ""
 
 permissions:
   contents: write
@@ -29,7 +15,7 @@ jobs:
   copy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source branch
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -42,50 +28,11 @@ jobs:
           echo "TODAY=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
           echo "SOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
 
-      - name: Fetch upstream
-        run: |
-          git remote add upstream "${{ github.event.inputs.upstream_url }}"
-          git fetch upstream "${{ github.event.inputs.upstream_branch }}" --no-tags
-
-      - name: Collect changed files
-        run: |
-          EXTRA="${{ github.event.inputs.extra_paths }}"
-          mkdir -p /tmp/source_files
-          > /tmp/files_to_copy.txt
-
-          if [[ -z "$EXTRA" || "$EXTRA" == "*" ]]; then
-            echo "[*] Auto-detecting changed files vs upstream..."
-            git diff --name-only "upstream/${{ github.event.inputs.upstream_branch }}" \
-              >> /tmp/files_to_copy.txt
-          else
-            echo "$EXTRA" | tr ',' '\n' | tr -d ' ' | while read path; do
-              [[ -z "$path" ]] && continue
-              if [[ -d "$path" ]]; then
-                find "$path" -type f >> /tmp/files_to_copy.txt
-              elif [[ -f "$path" ]]; then
-                echo "$path" >> /tmp/files_to_copy.txt
-              fi
-            done
-          fi
-
-          sort -u /tmp/files_to_copy.txt | sed '/^$/d' > /tmp/files_clean.txt
-          mv /tmp/files_clean.txt /tmp/files_to_copy.txt
-
-          echo "[*] Files to copy:"
-          cat /tmp/files_to_copy.txt
-
-          while read f; do
-            [[ -f "$f" ]] || continue
-            mkdir -p "/tmp/source_files/$(dirname $f)"
-            cp "$f" "/tmp/source_files/$f"
-          done < /tmp/files_to_copy.txt
-
       - name: Resolve target branches
         id: resolve
         run: |
           INPUT="${{ github.event.inputs.target_branches }}"
           SOURCE_BRANCH="${{ github.ref_name }}"
-
           if [[ "$INPUT" == "*" ]]; then
             BRANCHES=$(git branch -r | grep "origin/" | grep -v "HEAD" | \
               sed 's|origin/||' | tr -d ' ' | grep -v "^${SOURCE_BRANCH}$")
@@ -93,73 +40,58 @@ jobs:
             BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ' | \
               grep -v "^${SOURCE_BRANCH}$")
           fi
-
           echo "branches<<EOF" >> $GITHUB_OUTPUT
           echo "$BRANCHES" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Copy files to each target branch
+      - name: Copy changes to each target branch
         run: |
           SOURCE_BRANCH="${{ github.ref_name }}"
-
           while IFS= read -r branch; do
             [[ -z "$branch" ]] && continue
-
             echo "======================================="
             echo "Copying to branch: $branch"
             echo "======================================="
-
-            git checkout "$branch" || {
-              echo "[!] Cannot checkout $branch - skipping"
-              git checkout "$SOURCE_BRANCH"
+            CHANGED=$(git diff --name-only "origin/$branch" "origin/$SOURCE_BRANCH" || true)
+            if [[ -z "$CHANGED" ]]; then
+              echo "[=] No differences with $branch - skipping"
               continue
-            }
-
-            while read relpath; do
+            fi
+            mkdir -p /tmp/source_files
+            echo "$CHANGED" | while read f; do
+              [[ -f "$f" ]] || continue
+              mkdir -p "/tmp/source_files/$(dirname $f)"
+              cp "$f" "/tmp/source_files/$f"
+            done
+            git checkout "$branch" || { git checkout "$SOURCE_BRANCH"; continue; }
+            echo "$CHANGED" | while read relpath; do
               [[ -z "$relpath" ]] && continue
               srcfile="/tmp/source_files/$relpath"
               [[ -f "$srcfile" ]] || continue
-
-              IS_WORKFLOW=false
-              [[ "$relpath" == .github/workflows/* ]] && IS_WORKFLOW=true
-
-              if $IS_WORKFLOW; then
+              if [[ "$relpath" == .github/workflows/* ]]; then
                 BASENAME=$(basename "$relpath")
                 DIRNAME=$(dirname "$relpath")
-                NAME="${BASENAME%.*}"
-                EXT="${BASENAME##*.}"
-
+                NAME="${BASENAME%.*}"; EXT="${BASENAME##*.}"
                 if [[ -f "$relpath" ]] && ! cmp -s "$srcfile" "$relpath"; then
-                  NEW_NAME="${NAME}_${TODAY}.${EXT}"
-                  mv "$relpath" "${DIRNAME}/${NEW_NAME}"
-                  echo "[~] Renamed: $BASENAME -> $NEW_NAME"
+                  mv "$relpath" "${DIRNAME}/${NAME}_${TODAY}.${EXT}"
+                  echo "[~] Renamed: $BASENAME"
                 fi
                 mkdir -p "$DIRNAME"
                 cp "$srcfile" "$relpath"
-                echo "[+] Copied: $relpath"
               else
-                if cmp -s "$srcfile" "$relpath" 2>/dev/null; then
-                  echo "[=] Identical, skipping: $relpath"
-                else
-                  mkdir -p "$(dirname $relpath)"
-                  cp "$srcfile" "$relpath"
-                  echo "[+] Copied: $relpath"
-                fi
+                mkdir -p "$(dirname $relpath)"
+                cp "$srcfile" "$relpath"
               fi
-
-            done < /tmp/files_to_copy.txt
-
+              echo "[+] Copied: $relpath"
+            done
             git add -A
             if git diff --cached --quiet; then
               echo "[=] No changes on $branch"
             else
-              git commit -m "chore: sync changes from $SOURCE_BRANCH [$TODAY]"
+              git commit -m "chore: sync from $SOURCE_BRANCH [$TODAY]"
               git push origin "$branch"
               echo "[+] $branch updated"
             fi
-
             git checkout "$SOURCE_BRANCH"
             rm -rf /tmp/source_files
-            mkdir -p /tmp/source_files
-
           done <<< "${{ steps.resolve.outputs.branches }}"
