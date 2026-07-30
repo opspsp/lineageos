@@ -284,9 +284,9 @@ build_target() {
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_FREEZER
     scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
     scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_FS
-    #scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
+    
     # Begin: Disable unnecessary configs (safe for AOSP/alioth)
-scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
+#scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCHEDSTATS
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_KFENCE
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_PROFILING
