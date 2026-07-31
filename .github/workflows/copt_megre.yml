@@ -81,20 +81,23 @@ jobs:
             echo "Merging into branch: $branch"
             echo "======================================="
 
-            git checkout -B "$branch" "origin/$branch" || { git checkout "$SOURCE_BRANCH"; continue; }
+            git checkout -B "$branch" "origin/$branch" || {
+              git checkout "$SOURCE_BRANCH"
+              continue
+            }
 
             while read relpath; do
               [[ -z "$relpath" ]] && continue
 
-              # base: upstream version
               BASE=$(mktemp)
               git show "upstream/$UPSTREAM_BRANCH:$relpath" > "$BASE" 2>/dev/null || echo "" > "$BASE"
 
-              # ours: source branch (my changes)
               MINE=$(mktemp)
-              git show "origin/$SOURCE_BRANCH:$relpath" > "$MINE" 2>/dev/null || continue
+              git show "origin/$SOURCE_BRANCH:$relpath" > "$MINE" 2>/dev/null || {
+                rm -f "$BASE" "$MINE"
+                continue
+              }
 
-              # theirs: target branch current version
               THEIRS=$(mktemp)
               if [[ -f "$relpath" ]]; then
                 cp "$relpath" "$THEIRS"
@@ -103,7 +106,6 @@ jobs:
               fi
 
               if [[ "$relpath" == .github/workflows/* ]]; then
-                # workflows: no merge, just rename and copy
                 BASENAME=$(basename "$relpath")
                 DIRNAME=$(dirname "$relpath")
                 NAME="${BASENAME%.*}"; EXT="${BASENAME##*.}"
@@ -116,21 +118,13 @@ jobs:
                 echo "[+] Copied workflow: $relpath"
               else
                 mkdir -p "$(dirname $relpath)"
-                # 3-way merge: base=upstream, mine=source, theirs=target
-                # conflict: mine wins (-L labels for clarity)
-                git merge-file -q \
-                  --label "target($branch)" \
-                  --label "base(upstream)" \
-                  --label "source($SOURCE_BRANCH)" \
-                  "$THEIRS" "$BASE" "$MINE"
+                git merge-file -q "$THEIRS" "$BASE" "$MINE"
                 MERGE_RESULT=$?
-
                 if [[ $MERGE_RESULT -eq 0 ]]; then
                   cp "$THEIRS" "$relpath"
                   echo "[+] Merged clean: $relpath"
                 elif [[ $MERGE_RESULT -gt 0 ]]; then
-                  # conflict: apply mine (source priority)
-                  git checkout "origin/$SOURCE_BRANCH" -- "$relpath" 2>/dev/null || cp "$MINE" "$relpath"
+                  cp "$MINE" "$relpath"
                   echo "[!] Conflict resolved (source priority): $relpath"
                 fi
               fi
