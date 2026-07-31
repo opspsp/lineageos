@@ -316,7 +316,13 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_ALIGN_RODATA
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCHED_STACK_END_CHECK
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CC_WERROR
 # End: Disable unnecessary configs
-    
+  #disable zram algorithm 
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZO
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4HC
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4K
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4K_OPLUS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4KD
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_DEFLATE
     
 
     # 1. Baseband-guard configuration (Always applied)
@@ -364,6 +370,16 @@ QED="./drivers/net/ethernet/qlogic/qed/qed_debug.c"
     -e 's/.*"raw: 0x%016llx.*$/\/\/ &/' \
     -e 's/.*"raw: 0x%01x%08x%08x.*$/\/\/ &/' \
     "$QED" && echo "[+] qed_debug silenced."
+    #add_ge
+    QED="./drivers/net/ethernet/qlogic/qed/qed_debug.c"
+
+if [ -f "$QED" ]; then
+    sed -i 's/" raw: 0x%016llx.*"/"\/\* silenced \*\/"/g' "$QED"
+    sed -i 's/" raw: 0x%01x%08x%08x.*"/"\/\* silenced \*\/"/g' "$QED"
+    echo "[+] qed_debug patched successfully."
+else
+    echo "[-] Error: File $QED not found."
+fi
 
 # Silence socinfo logs
 SOCINFO="drivers/soc/qcom/socinfo.c"
