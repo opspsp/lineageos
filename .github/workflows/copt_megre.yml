@@ -81,7 +81,7 @@ jobs:
             echo "Merging into branch: $branch"
             echo "======================================="
 
-            git checkout "$branch" || { git checkout "$SOURCE_BRANCH"; continue; }
+            git checkout -B "$branch" "origin/$branch" || { git checkout "$SOURCE_BRANCH"; continue; }
 
             while read relpath; do
               [[ -z "$relpath" ]] && continue
