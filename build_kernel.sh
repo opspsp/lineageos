@@ -323,6 +323,28 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4K
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4K_OPLUS
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4KD
 
+# Remove unused filesystems
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_NFS_FS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_NFSD
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CIFS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SMB_SERVER
+
+# Remove unused network protocols
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IPX
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_ATALK
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_6LOWPAN
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IEEE802154
+
+# Remove unused drivers
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_HAMRADIO
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_FIREWIRE
+
+# LTO optimization
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_LTO_CLANG_THIN
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_LTO_CLANG_FULL
+
+
+
     
 
     # 1. Baseband-guard configuration (Always applied)
