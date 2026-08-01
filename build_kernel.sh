@@ -365,14 +365,6 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SLUB_DEBUG_ON
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_EXT2_FS
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_EXT3_FS
 
-# Enable MQ-Deadline module compilation
-scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_MQ_IOSCHED_DEADLINE
-
-# Set MQ-Deadline as default I/O scheduler option
-scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_DEFAULT_MQ_DEADLINE
-
-# Assign 'mq-deadline' string name to default I/O scheduler configuration
-scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_DEFAULT_IOSCHED "mq-deadline"
 
 # Security hardening (prevents memory exploits with zero CPU penalty)
 scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_FORTIFY_SOURCE
@@ -389,20 +381,30 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_ATM
 # Disable obsolete optical disc (CD-ROM/DVD) filesystems
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_ISO9660_FS
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_UDF_FS
+
+# Disable scheduler debugging overhead
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCHED_DEBUG
+
+# Disable legacy ISDN networking
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_ISDN
+
+# Disable obsolete legacy cryptographic ciphers
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_MD4
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_BLOWFISH
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_TWOFISH
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_CAST5
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_CAST6
+
+# Disable desktop PCI/ISA sound card drivers
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SND_PCI
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SND_ISA
+
+# Disable legacy CFQ single-queue scheduler
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IOSCHED_CFQ
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CFQ_GROUP_IOSCHED
-scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IOSCHED_DEADLINE
-scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_OPROFILE
 
+# Disable legacy profiling tool
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_OPROFILE
     
 
     # 1. Baseband-guard configuration (Always applied)
