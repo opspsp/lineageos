@@ -351,6 +351,13 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO_DWARF4
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_TRACING
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_GENERIC_TRACER
 
+# Thermal pressure awareness for scheduler
+#scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_SCHED_THERMAL_PRESSURE
+
+# Kernel compression
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_KERNEL_LZ4
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_KERNEL_GZIP
+
 
     
 
