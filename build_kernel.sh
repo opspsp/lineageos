@@ -262,7 +262,7 @@ build_target() {
     done
 
     echo "[*] Applying Performance & Logging Tweaks..."
-    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_BUF_SHIFT 14
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_BUF_SHIFT 15
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 8
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT 8
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_CONSOLE_LOGLEVEL_DEFAULT 1
@@ -288,7 +288,7 @@ build_target() {
     #echo "[*] Setting custom kernel local version..."
     #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
     #scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
-    #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION ""
+    
     scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION ""
     scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOCALVERSION_AUTO n
 
@@ -322,7 +322,7 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4HC
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4K
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4K_OPLUS
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4KD
-scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_DEFLATE
+
     
 
     # 1. Baseband-guard configuration (Always applied)
