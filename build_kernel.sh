@@ -343,6 +343,13 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_FIREWIRE
 scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_LTO_CLANG_THIN
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_LTO_CLANG_FULL
 
+# Remove debug symbols (reduce kernel size)
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO_DWARF4
+
+# Disable tracing (remove profiling overhead)
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_TRACING
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_GENERIC_TRACER
 
 
     
