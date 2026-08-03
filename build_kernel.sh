@@ -466,43 +466,28 @@ fi
 
 
 #gem ballroom 
-# Silence qed_debug logs
-QED="./drivers/net/ethernet/qlogic/qed/qed_debug.c"
-[ -f "$QED" ] && sed -i \
-    -e 's/.*"raw: 0x%016llx.*/\/\/ &/' \
-    -e 's/.*"raw: 0x%01x%08x%08x.*/\/\/ &/' \
-    "$QED" && echo "[+] qed_debug silenced."
 
-# Silence fg-util log
-FG_UTIL="./drivers/power/supply/qcom/fg-util.c"
-[ -f "$FG_UTIL" ] && sed -i \
-    -e 's/.*"raw: 0x%02x.*/\/\/ &/' \
-    "$FG_UTIL" && echo "[+] fg-util silenced."
 
-# Silence pcxhr log
-PCXHR="./sound/pci/pcxhr/pcxhr.c"
-[ -f "$PCXHR" ] && sed -i \
-    -e 's/.*"raw: 0x%04x%06x%06x.*/\/\/ &/' \
-    "$PCXHR" && echo "[+] pcxhr silenced."
-
-# Silence Power Supply drivers (Handles both single-line and multi-line calls)
-for FILE in \
-    "./drivers/power/supply/renesas/idtp9418.c" \
-    "./drivers/power/supply/renesas/idtp9415.c" \
-    "./drivers/power/supply/renesas/idtp9415_cas.c" \
-    "./drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c" \
-    "./drivers/power/supply/qcom/qpnp-fg-gen4.c" \
-    "./drivers/power/supply/nuvolta/rx1619.c" \
-    "./drivers/power/supply/nuvolta/rx1619_cas.c" \
-    "./drivers/power/supply/qcom_cas/rx1619.c" \
+FILES=(
+    "./drivers/net/ethernet/qlogic/qed/qed_debug.c"
+    "./drivers/power/supply/qcom/fg-util.c"
+    "./sound/pci/pcxhr/pcxhr.c"
+    "./drivers/power/supply/renesas/idtp9418.c"
+    "./drivers/power/supply/renesas/idtp9415.c"
+    "./drivers/power/supply/renesas/idtp9415_cas.c"
+    "./drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c"
+    "./drivers/power/supply/qcom/qpnp-fg-gen4.c"
+    "./drivers/power/supply/nuvolta/rx1619.c"
+    "./drivers/power/supply/nuvolta/rx1619_cas.c"
+    "./drivers/power/supply/qcom_cas/rx1619.c"
     "./drivers/power/supply/qcom_cas/idtp9415.c"
-do
-    [ -f "$FILE" ] && sed -i \
-        -e 's/.*ept_raw: 0x.*/\/\/ &/' \
-        -e 's/.*CEP_raw: 0x.*/\/\/ &/' \
-        -e 's/.*esr_raw: 0x.*/\/\/ &/' \
-        -e 's/.*esr_delta);.*/\/\/ &/' \
-        "$FILE" && echo "[+] Silenced: $FILE"
+)
+
+for FILE in "${FILES[@]}"; do
+    if [ -f "$FILE" ]; then
+        perl -0777 -pi -e 's/\b(?:fg_dbg|dev_info|printk|snd_iprintf)\s*\([^;]*?(?:raw:\s*0x|esr_raw|ept_raw|CEP_raw)[^;]*?\);/(void)0;/gs' "$FILE"
+        echo "[+] Safely replaced with NOP: $FILE"
+    fi
 done
 #end bolt 
 
