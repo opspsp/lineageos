@@ -1,4 +1,4 @@
-name: Find remaining log sources
+name: Find raw 0x two-digit source
 
 on:
   workflow_dispatch:
@@ -10,46 +10,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find remaining log sources
+      - name: Search
         run: |
           {
             echo "=========================================="
-            echo " raw: 0x in qed_debug.c"
+            echo " grep 'raw: 0x' with 2-digit hex"
             echo "=========================================="
-            grep -n "raw:" drivers/net/ethernet/qlogic/qed/qed_debug.c 2>/dev/null || echo "NOT FOUND"
+            grep -rn '"raw: 0x%0\?2x\|raw: 0x%02\|raw: 0x%.2\|raw: 0x%x' \
+              --include="*.c" . 2>/dev/null | head -30 || echo "NOT FOUND"
 
             echo ""
             echo "=========================================="
-            echo " All print functions in qed_debug.c"
+            echo " grep exact string raw: 0x in all .c files"
             echo "=========================================="
-            grep -n "pr_info\|printk\|pr_err\|dev_info\|dev_err" \
-              drivers/net/ethernet/qlogic/qed/qed_debug.c 2>/dev/null | head -20 || echo "NOT FOUND"
+            grep -rn '"raw: 0x' \
+              --include="*.c" . 2>/dev/null | head -30 || echo "NOT FOUND"
 
-            echo ""
-            echo "=========================================="
-            echo " FG fg_gen4 remaining logs"
-            echo "=========================================="
-            grep -n "pr_info\|FG_POWER_SUPPLY\|soc_scale" \
-              drivers/power/supply/qcom/qpnp-fg-gen4.c 2>/dev/null | head -20 || echo "NOT FOUND"
+          } | tee raw-source.txt
 
-            echo ""
-            echo "=========================================="
-            echo " kauditd in kernel/audit.c"
-            echo "=========================================="
-            grep -n "kauditd\|printk_skb" kernel/audit.c 2>/dev/null | head -20 || echo "NOT FOUND"
-
-            echo ""
-            echo "=========================================="
-            echo " aw8697 remaining pr_info and aw_dev_info"
-            echo "=========================================="
-            grep -n "pr_info\|aw_dev_info\|#define DEBUG" \
-              drivers/input/misc/aw8697_haptic/aw8697.c 2>/dev/null | head -20 || echo "NOT FOUND"
-
-          } | tee remaining-logs.txt
-
-      - name: Upload results
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: remaining-logs
-          path: remaining-logs.txt
+          name: raw-source
+          path: raw-source.txt
           retention-days: 7
