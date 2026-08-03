@@ -485,7 +485,7 @@ PCXHR="./sound/pci/pcxhr/pcxhr.c"
     -e 's/.*"raw: 0x%04x%06x%06x.*/\/\/ &/' \
     "$PCXHR" && echo "[+] pcxhr silenced."
 
-# Silence Power Supply drivers (renesas, nuvolta, qcom)
+# Silence Power Supply drivers (Handles both single-line and multi-line calls)
 for FILE in \
     "./drivers/power/supply/renesas/idtp9418.c" \
     "./drivers/power/supply/renesas/idtp9415.c" \
@@ -501,6 +501,7 @@ do
         -e 's/.*ept_raw: 0x.*/\/\/ &/' \
         -e 's/.*CEP_raw: 0x.*/\/\/ &/' \
         -e 's/.*esr_raw: 0x.*/\/\/ &/' \
+        -e 's/.*esr_delta);.*/\/\/ &/' \
         "$FILE" && echo "[+] Silenced: $FILE"
 done
 #end bolt 
