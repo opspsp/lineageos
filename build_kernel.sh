@@ -489,6 +489,93 @@ for FILE in "${FILES[@]}"; do
         echo "[+] Safely replaced with NOP: $FILE"
     fi
 done
+
+
+# Silence aw8697 haptic driver logs
+AW_DIR="./drivers/input/misc/aw8697_haptic"
+if [ -d "$AW_DIR" ]; then
+    echo "[*] Silencing aw8697 logs..."
+    find "$AW_DIR" -name "*.c" | xargs sed -i \
+        -e '/^#define DEBUG/d' \
+        -e 's/pr_info(/pr_debug(/g' \
+        -e 's/aw_pr_info(/pr_debug(/g' \
+        -e 's/aw_dev_info(/aw_dev_dbg(/g'
+    echo "[+] aw8697 silenced."
+fi
+
+# Silence FG fuel gauge logs
+for f in \
+    drivers/power/supply/qcom/qpnp-fg-gen4.c \
+    drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c \
+    drivers/power/supply/qcom/fg-util.c; do
+    [ -f "$f" ] && sed -i \
+        -e 's/pr_info(/pr_debug(/g' \
+        -e 's/FG_POWER_SUPPLY, "raw:/FG_STATUS, "raw:/g' \
+        "$f" && echo "[+] silenced: $f"
+done
+
+# Silence qed debug
+QED="./drivers/net/ethernet/qlogic/qed/qed_debug.c"
+[ -f "$QED" ] && sed -i \
+    -e 's/.*"raw: 0x%016llx.*$/\/\/ &/' \
+    -e 's/.*"raw: 0x%01x%08x%08x.*$/\/\/ &/' \
+    "$QED" && echo "[+] qed_debug silenced."
+
+# Silence socinfo logs
+SOCINFO="./drivers/soc/qcom/socinfo.c"
+[ -f "$SOCINFO" ] && sed -i 's/pr_info(/pr_debug(/g' "$SOCINFO" && echo "[+] socinfo silenced."
+
+# Silence kauditd and audit_log_lost
+AUDIT="./kernel/audit.c"
+[ -f "$AUDIT" ] && sed -i \
+    -e 's/kauditd_printk_skb(skb)/((void)0)/g' \
+    -e 's/audit_log_lost("[^"]*"[^;]*);/((void)0);/g' \
+    "$AUDIT" && echo "[+] audit silenced."
+
+# Silence IRQ affine log
+IRQ="./kernel/irq/cpuhotplug.c"
+[ -f "$IRQ" ] && sed -i \
+    's/pr_info_ratelimited("IRQ %u: no longer affine/pr_debug("IRQ %u: no longer affine/g' \
+    "$IRQ" && echo "[+] IRQ affine silenced."
+
+# Silence raw: 0x log sources
+FILES=(
+    "./drivers/net/ethernet/qlogic/qed/qed_debug.c"
+    "./drivers/power/supply/qcom/fg-util.c"
+    "./drivers/power/supply/renesas/idtp9418.c"
+    "./drivers/power/supply/renesas/idtp9415.c"
+    "./drivers/power/supply/renesas/idtp9415_cas.c"
+    "./drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c"
+    "./drivers/power/supply/qcom/qpnp-fg-gen4.c"
+    "./drivers/power/supply/nuvolta/rx1619.c"
+    "./drivers/power/supply/nuvolta/rx1619_cas.c"
+    "./drivers/power/supply/qcom_cas/rx1619.c"
+    "./drivers/power/supply/qcom_cas/idtp9415.c"
+)
+
+for FILE in "${FILES[@]}"; do
+    [ -f "$FILE" ] && \
+    perl -0777 -pi -e 's/\b(?:fg_dbg|dev_info|printk|snd_iprintf)\s*\([^;]*?(?:raw:\s*0x|esr_raw|ept_raw|CEP_raw)[^;]*?\);/(void)0;/gs' "$FILE" && \
+    echo "[+] Silenced: $FILE"
+done
+
+# Silence send_afe_cal_type log
+sed -i 's/pr_info("%s: cal_index is %d/pr_debug("%s: cal_index is %d/' \
+    techpack/audio/dsp/q6afe.c 2>/dev/null && echo "[+] q6afe silenced."
+
+# Silence cs35l41 amp driver logs
+grep -rl "cs35l41_pcm_hw_params\|cs35l41_component_set_sysclk\|cs35l41_main_amp_event" \
+    --include="*.c" . 2>/dev/null | \
+    xargs -r sed -i 's/dev_info(/dev_dbg(/g' && echo "[+] cs35l41 silenced."
+
+# Silence BBG logs (after BBG clone)
+grep -rl "has been marked as untrusted" Baseband-guard/ 2>/dev/null | \
+    xargs -r sed -i 's/pr_info(/pr_debug(/g' && echo "[+] BBG silenced."
+
+
+
+
+
 #end bolt 
 
 
