@@ -1,4 +1,4 @@
-name: Find raw 0x two-digit source
+name: Find and silence remaining logs
 
 on:
   workflow_dispatch:
@@ -10,27 +10,55 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Search
+      - name: Search log sources
         run: |
           {
             echo "=========================================="
-            echo " grep 'raw: 0x' with 2-digit hex"
+            echo " BBG: has been marked as untrusted"
             echo "=========================================="
-            grep -rn '"raw: 0x%0\?2x\|raw: 0x%02\|raw: 0x%.2\|raw: 0x%x' \
-              --include="*.c" . 2>/dev/null | head -30 || echo "NOT FOUND"
+            grep -rn "has been marked as untrusted" \
+              --include="*.c" . 2>/dev/null || echo "NOT FOUND"
 
             echo ""
             echo "=========================================="
-            echo " grep exact string raw: 0x in all .c files"
+            echo " qcom_rpmh TCS Busy"
             echo "=========================================="
-            grep -rn '"raw: 0x' \
-              --include="*.c" . 2>/dev/null | head -30 || echo "NOT FOUND"
+            grep -rn "TCS Busy\|retrying RPMH" \
+              --include="*.c" . 2>/dev/null || echo "NOT FOUND"
 
-          } | tee raw-source.txt
+            echo ""
+            echo "=========================================="
+            echo " send_afe_cal_type"
+            echo "=========================================="
+            grep -rn "send_afe_cal_type\|cal_block not found\|cal_index is" \
+              --include="*.c" . 2>/dev/null | head -20 || echo "NOT FOUND"
+
+            echo ""
+            echo "=========================================="
+            echo " batt power supply prop 67"
+            echo "=========================================="
+            grep -rn "power supply prop 67\|prop 67 not supported\|pc_port" \
+              --include="*.c" . 2>/dev/null | head -20 || echo "NOT FOUND"
+
+            echo ""
+            echo "=========================================="
+            echo " FG status_change_work / esr_fcc_config"
+            echo "=========================================="
+            grep -rn "status_change_work\|esr_fcc_config" \
+              --include="*.c" . 2>/dev/null | head -20 || echo "NOT FOUND"
+
+            echo ""
+            echo "=========================================="
+            echo " cs35l41 pcm_hw_params / sysclk / amp_event"
+            echo "=========================================="
+            grep -rn "pcm_hw_params\|component_set_sysclk\|main_amp_event" \
+              --include="*.c" . 2>/dev/null | head -20 || echo "NOT FOUND"
+
+          } | tee remaining-logs.txt
 
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: raw-source
-          path: raw-source.txt
+          name: remaining-logs
+          path: remaining-logs.txt
           retention-days: 7
