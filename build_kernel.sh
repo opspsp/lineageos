@@ -405,6 +405,11 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CFQ_GROUP_IOSCHED
 
 # Disable legacy profiling tool
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_OPROFILE
+
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_UCLAMP_TASK
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_UCLAMP_TASK_GROUP
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_FAIR_GROUP_SCHED
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
     
 
     # 1. Baseband-guard configuration (Always applied)
