@@ -299,9 +299,9 @@ scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCHEDSTATS
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_KFENCE
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_PROFILING
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_MAGIC_SYSRQ
-scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKCONFIG
-scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKCONFIG_PROC
-scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKHEADERS
+# scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKCONFIG
+# scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKCONFIG_PROC
+# scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKHEADERS
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCSI_CONSTANTS
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCSI_LOGGING
 scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IP_ROUTE_VERBOSE
