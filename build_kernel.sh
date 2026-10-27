@@ -112,6 +112,12 @@ git clone https://github.com/AstideLabs/AnyKernel3 -b kona --single-branch --dep
 echo "[+] AnyKernel3 cloned successfully."
 echo "[*] Adjusting AnyKernel3..."
 sed -i "s/^device\.name1=.*/device.name1=${DEVICE_NAME}/" anykernel/anykernel.sh
+sed -i -E '/^[[:space:]]*flash_generic[[:space:]]+dtbo[[:space:]]*;/d' anykernel/anykernel.sh
+if grep -Eq '^[[:space:]]*(flash_generic[[:space:]]+dtbo|flash_dtbo)([[:space:]]|;|$)' anykernel/anykernel.sh; then
+    echo "[!] Unexpected automatic DTBO flash command remains in AnyKernel3."
+    exit 1
+fi
+echo "[*] Preserving the currently installed DTBO."
 echo "[*] AnyKernel3 adjusted successfully."
 echo "==========================================="
 
