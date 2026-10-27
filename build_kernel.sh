@@ -1,7 +1,6 @@
 #!/bin/bash
-
 # Exit on any error
-set -e
+set -eo pipefail
 
 # ==========================================
 # Argument Parsing
@@ -30,6 +29,7 @@ ENABLE_KSU=0
 TARGET_OS="both"
 
 shift
+
 # Parse remaining arguments loosely
 for arg in "$@"; do
     case "$arg" in
@@ -73,10 +73,12 @@ mkdir -p "$CCACHE_DIR"
 # ==========================================
 if [ "$ENABLE_KSU" -eq 1 ]; then
     echo "==========================================="
-    echo " [*] Initializing KernelSU (ReSukiSU) Setup"
+    echo " [*] Initializing KernelSU (BakaSU) Setup"
     echo "==========================================="
-    echo "[*] Downloading and running ReSukiSU remote setup script..."
-    curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+    echo "[*] Downloading and running BakaSU remote setup script..."
+    curl -fLSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
+    echo "[*] KernelSU source revision:"
+    git -C KernelSU log -1 --format='%H %s'
     echo "[+] KernelSU setup finished."
 fi
 
@@ -101,6 +103,7 @@ echo "==========================================="
 echo " [*] Initializing AnyKernel3 Workspace"
 echo "==========================================="
 rm -rf anykernel
+
 echo "[*] Cloning AnyKernel3..."
 git clone https://github.com/AstideLabs/AnyKernel3 -b kona --single-branch --depth=1 anykernel
 echo "[+] AnyKernel3 cloned successfully."
@@ -117,9 +120,8 @@ build_target() {
     echo "==========================================="
     echo " Starting Kernel Compilation for ${DEVICE_NAME} (Target: $OS_TYPE)"
     echo "==========================================="
-    
+
     local OUT_DIR="${KERNEL_DIR}/out_${OS_TYPE}"
-    
     local MAKE_OPTS=(
         -j"$(nproc)"
         O="${OUT_DIR}"
@@ -143,7 +145,7 @@ build_target() {
     if [ "$OS_TYPE" == "miui" ]; then
         echo "[*] Applying MIUI DTS patches..."
         cp -a "${DTS_SOURCE}" "${DTS_BACKUP}"
-        
+
         # Apply MIUI specific sed patches to dts
         sed -i 's/<154>/<1537>/g' ${DTS_SOURCE}/dsi-panel-j1s* || true
         sed -i 's/<154>/<1537>/g' ${DTS_SOURCE}/dsi-panel-j2* || true
@@ -157,17 +159,14 @@ build_target() {
         sed -i 's/<70>/<695>/g' ${DTS_SOURCE}/dsi-panel-l11r-38-08-0a-dsc-cmd.dtsi || true
         sed -i 's/<71>/<710>/g' ${DTS_SOURCE}/dsi-panel-j1s* || true
         sed -i 's/<71>/<710>/g' ${DTS_SOURCE}/dsi-panel-j2* || true
-
         sed -i 's/\/\/ mi,mdss-dsi-pan-enable-smart-fps/mi,mdss-dsi-pan-enable-smart-fps/g' ${DTS_SOURCE}/dsi-panel* || true
         sed -i 's/\/\/ mi,mdss-dsi-smart-fps-max_framerate/mi,mdss-dsi-smart-fps-max_framerate/g' ${DTS_SOURCE}/dsi-panel* || true
         sed -i 's/\/\/ qcom,mdss-dsi-pan-enable-smart-fps/qcom,mdss-dsi-pan-enable-smart-fps/g' ${DTS_SOURCE}/dsi-panel* || true
         sed -i 's/qcom,mdss-dsi-qsync-min-refresh-rate/\/\/qcom,mdss-dsi-qsync-min-refresh-rate/g' ${DTS_SOURCE}/dsi-panel* || true
-
         sed -i 's/120 90 60/120 90 60 50 30/g' ${DTS_SOURCE}/dsi-panel-g7a-36-02-0c-dsc-video.dtsi || true
         sed -i 's/120 90 60/120 90 60 50 30/g' ${DTS_SOURCE}/dsi-panel-g7a-37-02-0a-dsc-video.dtsi || true
         sed -i 's/120 90 60/120 90 60 50 30/g' ${DTS_SOURCE}/dsi-panel-g7a-37-02-0b-dsc-video.dtsi || true
         sed -i 's/144 120 90 60/144 120 90 60 50 48 30/g' ${DTS_SOURCE}/dsi-panel-j3s-37-02-0a-dsc-video.dtsi || true
-
         sed -i 's/\/\/39 00 00 00 00 00 03 51 03 FF/39 00 00 00 00 00 03 51 03 FF/g' ${DTS_SOURCE}/dsi-panel-j9-38-0a-0a-fhd-video.dtsi || true
         sed -i 's/\/\/39 00 00 00 00 00 03 51 0D FF/39 00 00 00 00 00 03 51 0D FF/g' ${DTS_SOURCE}/dsi-panel-j2-p2-1-38-0c-0a-dsc-cmd.dtsi || true
         sed -i 's/\/\/39 00 00 00 00 00 05 51 0F 8F 00 00/39 00 00 00 00 00 05 51 0F 8F 00 00/g' ${DTS_SOURCE}/dsi-panel-j1s-42-02-0a-dsc-cmd.dtsi || true
@@ -197,9 +196,227 @@ build_target() {
     make "${MAKE_OPTS[@]}" "${DEFCONFIG}"
 
     # ----------------------------------------------------
-    # Configuration tweaks
+    # Configuration tweaks (Debugging & Performance)
     # ----------------------------------------------------
+    echo "[*] Disabling unnecessary debugging configs..."
+    disable_items=(
+        "CONFIG_ARCH_SUPPORTS_DEBUG_PAGEALLOC"
+        "CONFIG_HAVE_DEBUG_BUGVERBOSE"
+        "CONFIG_DEBUG_BUGVERBOSE"
+        "CONFIG_DYNAMIC_DEBUG"
+        "CONFIG_HAVE_DEBUG_KMEMLEAK"
+        "CONFIG_SCHED_DEBUG"
+        "CONFIG_DEBUG_LIST"
+        "CONFIG_ARCH_HAS_DEBUG_VIRTUAL"
+        #"CONFIG_MSM_TZ_LOG"
+        "CONFIG_NETFILTER_NETLINK_LOG"
+        "CONFIG_NF_LOG_COMMON"
+        "CONFIG_NETFILTER_XT_TARGET_LOG"
+        "CONFIG_NETFILTER_XT_TARGET_NFLOG"
+        "CONFIG_NETFILTER_XT_MATCH_QUOTA2_LOG"
+        "CONFIG_NF_LOG_IPV4"
+        "CONFIG_NF_LOG_IPV6"
+        "CONFIG_DEBUG_PREEMPT"
+        "CONFIG_USB_PD_PHY_DEBUG"
+        "CONFIG_BQ2597X_DEBUG"
+        "CONFIG_CHARGER_DEBUG"
+        "CONFIG_DEBUG_PD_PHY"
+        "CONFIG_AUDIT_TREE"
+        "CONFIG_PROFILING"
+        #"CONFIG_FTRACE"
+        "CONFIG_STACK_TRACER"
+        "CONFIG_FUNCTION_TRACER"
+        "CONFIG_SLUB_DEBUG"
+        "CONFIG_DEBUG_STACK_USAGE"
+        "CONFIG_SCHEDSTATS"
+        "CONFIG_DEBUG_VM"
+        "CONFIG_LOCK_DEBUGGING_SUPPORT"
+        #"CONFIG_SCSI_LOGGING"
+        "CONFIG_XLOGCHAR"
+        "CONFIG_QCOM_INITIAL_LOGBUF"
+        "CONFIG_QTI_RPM_STATS_LOG"
+        "CONFIG_QTI_DDR_STATS_LOG"
+        #"CONFIG_IPC_LOGGING"
+        "CONFIG_KASAN"
+        "CONFIG_KASAN_OUTLINE"
+        "CONFIG_PAGE_POISONING"
+        "CONFIG_DEBUG_INFO"
+        "CONFIG_DEBUG_MISC"
+        "CONFIG_DEBUG_ATOMIC_SLEEP"
+        "CONFIG_BINDER_DEBUG"
+        "CONFIG_BATTERY_HISTORY"
+        "CONFIG_MEM_ALLOC_PROFILING"
+        "CONFIG_LMK_DEBUGGER"
+        "CONFIG_LOCKUP_DETECTOR"
+        "CONFIG_HARDLOCKUP_DETECTOR"
+        "CONFIG_SOFTLOCKUP_DETECTOR"
+        "CONFIG_PM_TRACE_CHUNK"
+        "CONFIG_WARN_ALL_UNSEEN_RENAME"
+        "CONFIG_SCHED_WARN_FACTOR"
+        "CONFIG_PANIC_TIMEOUT"
+        "CONFIG_USBPD_DEBUG"
+        "CONFIG_IPA_DEBUG"
+        "CONFIG_QUICKCHARGE_DEBUG"
+        #"CONFIG_BLK_DEV_IO_TRACE"
+        "CONFIG_TRANSPARENT_HUGEPAGE"
+        "CONFIG_DEBUG_FS"
+    )
+
+    for item in "${disable_items[@]}"; do
+        scripts/config --file "${OUT_DIR}/.config" -d "$item"
+    done
+
+    echo "[*] Applying Performance & Logging Tweaks..."
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_BUF_SHIFT 15
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOG_CPU_MAX_BUF_SHIFT 8
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT 8
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_CONSOLE_LOGLEVEL_DEFAULT 1
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_MESSAGE_LOGLEVEL_DEFAULT 1
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_CONSOLE_LOGLEVEL_QUIET 1
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_SLUB
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_SLUB_CPU_PARTIAL
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
+    scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CC_OPTIMIZE_FOR_SIZE
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_ZRAM
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_ZSMALLOC
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_ZPOOL
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_PSI
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_FAIR_GROUP_SCHED
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CFS_BANDWIDTH
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_MEMCG
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_MEMCG_SWAP
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_PIDS
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_FREEZER
+    scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
+    scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_FS
+# 4. Set custom kernel local version (-perf)
+    #echo "[*] Setting custom kernel local version..."
+    #scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION "-perf"
+    #scripts/config --file "${OUT_DIR}/.config" -u CONFIG_LOCALVERSION_AUTO
     
+    scripts/config --file "${OUT_DIR}/.config" --set-str CONFIG_LOCALVERSION ""
+    scripts/config --file "${OUT_DIR}/.config" --set-val CONFIG_LOCALVERSION_AUTO n
+
+    
+    # Begin: Disable unnecessary configs (safe for AOSP/alioth)
+#scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_AUDIT
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCHEDSTATS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_KFENCE
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_PROFILING
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_MAGIC_SYSRQ
+# scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKCONFIG
+# scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKCONFIG_PROC
+# scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IKHEADERS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCSI_CONSTANTS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCSI_LOGGING
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IP_ROUTE_VERBOSE
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_VIDEO_ADV_DEBUG
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SKY2
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SMSC911X
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_USB_ISP1760
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_XFRM_STATISTICS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_RAS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_EDAC
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_ALIGN_RODATA
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCHED_STACK_END_CHECK
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CC_WERROR
+# End: Disable unnecessary configs
+  #disable zram algorithm 
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZO
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4HC
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4K
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4K_OPLUS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_LZ4KD
+
+# Remove unused filesystems
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_NFS_FS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_NFSD
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CIFS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SMB_SERVER
+
+# Remove unused network protocols
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IPX
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_ATALK
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_6LOWPAN
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IEEE802154
+
+# Remove unused drivers
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_HAMRADIO
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_FIREWIRE
+
+# LTO optimization
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_LTO_CLANG_THIN
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_LTO_CLANG_FULL
+
+# Remove debug symbols (reduce kernel size)
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_DEBUG_INFO_DWARF4
+
+# Disable tracing (remove profiling overhead)
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_TRACING
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_GENERIC_TRACER
+
+# Thermal pressure awareness for scheduler
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_SCHED_THERMAL_PRESSURE
+
+# Kernel compression
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_KERNEL_LZ4
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_KERNEL_GZIP
+#new
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SLUB_DEBUG_ON
+# Disable Kernel Samepage Merging (saves CPU cycles and battery)
+#scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_KSM
+# Disable unused legacy filesystems
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_EXT2_FS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_EXT3_FS
+
+
+# Security hardening (prevents memory exploits with zero CPU penalty)
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_FORTIFY_SOURCE
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_HARDENED_USERCOPY
+
+# Disable unused PC hardware input drivers
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_INPUT_JOYSTICK
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_INPUT_MOUSE
+
+# Disable obsolete networking protocols
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IP_SCTP
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_ATM
+
+# Disable obsolete optical disc (CD-ROM/DVD) filesystems
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_ISO9660_FS
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_UDF_FS
+
+# Disable scheduler debugging overhead
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SCHED_DEBUG
+
+# Disable legacy ISDN networking
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_ISDN
+
+# Disable obsolete legacy cryptographic ciphers
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_MD4
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_BLOWFISH
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_TWOFISH
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_CAST5
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CRYPTO_CAST6
+
+# Disable desktop PCI/ISA sound card drivers
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SND_PCI
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_SND_ISA
+
+# Disable legacy CFQ single-queue scheduler
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_IOSCHED_CFQ
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_CFQ_GROUP_IOSCHED
+
+# Disable legacy profiling tool
+scripts/config --file "${OUT_DIR}/.config" --disable CONFIG_OPROFILE
+
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_UCLAMP_TASK
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_UCLAMP_TASK_GROUP
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_FAIR_GROUP_SCHED
+scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
+    
+
     # 1. Baseband-guard configuration (Always applied)
     echo "[*] Injecting Baseband-guard configuration..."
     scripts/config --file "${OUT_DIR}/.config" -e BBG
@@ -211,9 +428,186 @@ build_target() {
             -e KSU \
             -e THREAD_INFO_IN_TASK \
             -e KSU_SUSFS
+
+        echo "[*] Silencing KernelSU logs..."
+        find . -type f -name "*.c" \( -path "*kernelsu*" -o -path "*KernelSU*" \) -exec sed -i 's/pr_info(/pr_debug(/g' {} + || true
+        
     fi
 
-    # 3. MIUI configurations
+# Silence aw8697 haptic driver logs
+AW_DIR="./drivers/input/misc/aw8697_haptic"
+if [ -d "$AW_DIR" ]; then
+    echo "[*] Silencing aw8697 logs..."
+    find "$AW_DIR" -name "*.c" | xargs sed -i \
+        -e '/^#define DEBUG/d' \
+        -e 's/pr_info(/pr_debug(/g' \
+        -e 's/aw_dev_info(/aw_dev_dbg(/g'
+    echo "[+] aw8697 silenced."
+fi
+
+# Silence FG fuel gauge logs
+for f in \
+    drivers/power/supply/qcom/qpnp-fg-gen4.c \
+    drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c \
+    drivers/power/supply/qcom/fg-util.c; do
+    [ -f "$f" ] && sed -i \
+        -e 's/pr_info(/pr_debug(/g' \
+        -e 's/FG_POWER_SUPPLY, "raw:/FG_STATUS, "raw:/g' \
+        "$f" && echo "[+] silenced: $f"
+done
+
+# Silence qed debug (raw: 0xab/0xaa/0xa9 source)
+QED="./drivers/net/ethernet/qlogic/qed/qed_debug.c"
+[ -f "$QED" ] && sed -i \
+    -e 's/.*"raw: 0x%016llx.*$/\/\/ &/' \
+    -e 's/.*"raw: 0x%01x%08x%08x.*$/\/\/ &/' \
+    "$QED" && echo "[+] qed_debug silenced."
+    #add_ge
+    QED="./drivers/net/ethernet/qlogic/qed/qed_debug.c"
+
+if [ -f "$QED" ]; then
+    sed -i 's/" raw: 0x%016llx.*"/"\/\* silenced \*\/"/g' "$QED"
+    sed -i 's/" raw: 0x%01x%08x%08x.*"/"\/\* silenced \*\/"/g' "$QED"
+    echo "[+] qed_debug patched successfully."
+else
+    echo "[-] Error: File $QED not found."
+fi
+
+
+
+#gem ballroom 
+
+
+FILES=(
+    "./drivers/net/ethernet/qlogic/qed/qed_debug.c"
+    "./drivers/power/supply/qcom/fg-util.c"
+    "./sound/pci/pcxhr/pcxhr.c"
+    "./drivers/power/supply/renesas/idtp9418.c"
+    "./drivers/power/supply/renesas/idtp9415.c"
+    "./drivers/power/supply/renesas/idtp9415_cas.c"
+    "./drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c"
+    "./drivers/power/supply/qcom/qpnp-fg-gen4.c"
+    "./drivers/power/supply/nuvolta/rx1619.c"
+    "./drivers/power/supply/nuvolta/rx1619_cas.c"
+    "./drivers/power/supply/qcom_cas/rx1619.c"
+    "./drivers/power/supply/qcom_cas/idtp9415.c"
+)
+
+for FILE in "${FILES[@]}"; do
+    if [ -f "$FILE" ]; then
+        perl -0777 -pi -e 's/\b(?:fg_dbg|dev_info|printk|snd_iprintf)\s*\([^;]*?(?:raw:\s*0x|esr_raw|ept_raw|CEP_raw)[^;]*?\);/(void)0;/gs' "$FILE"
+        echo "[+] Safely replaced with NOP: $FILE"
+    fi
+done
+
+
+# Silence aw8697 haptic driver logs
+AW_DIR="./drivers/input/misc/aw8697_haptic"
+if [ -d "$AW_DIR" ]; then
+    echo "[*] Silencing aw8697 logs..."
+    find "$AW_DIR" -name "*.c" | xargs sed -i \
+        -e '/^#define DEBUG/d' \
+        -e 's/pr_info(/pr_debug(/g' \
+        -e 's/aw_pr_info(/pr_debug(/g' \
+        -e 's/aw_dev_info(/aw_dev_dbg(/g'
+    echo "[+] aw8697 silenced."
+fi
+
+# Silence FG fuel gauge logs
+for f in \
+    drivers/power/supply/qcom/qpnp-fg-gen4.c \
+    drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c \
+    drivers/power/supply/qcom/fg-util.c; do
+    [ -f "$f" ] && sed -i \
+        -e 's/pr_info(/pr_debug(/g' \
+        -e 's/FG_POWER_SUPPLY, "raw:/FG_STATUS, "raw:/g' \
+        "$f" && echo "[+] silenced: $f"
+done
+
+# Silence qed debug
+QED="./drivers/net/ethernet/qlogic/qed/qed_debug.c"
+[ -f "$QED" ] && sed -i \
+    -e 's/.*"raw: 0x%016llx.*$/\/\/ &/' \
+    -e 's/.*"raw: 0x%01x%08x%08x.*$/\/\/ &/' \
+    "$QED" && echo "[+] qed_debug silenced."
+
+# Silence socinfo logs
+SOCINFO="./drivers/soc/qcom/socinfo.c"
+[ -f "$SOCINFO" ] && sed -i 's/pr_info(/pr_debug(/g' "$SOCINFO" && echo "[+] socinfo silenced."
+
+# Silence kauditd and audit_log_lost
+AUDIT="./kernel/audit.c"
+[ -f "$AUDIT" ] && sed -i \
+    -e 's/kauditd_printk_skb(skb)/((void)0)/g' \
+    -e 's/audit_log_lost("[^"]*"[^;]*);/((void)0);/g' \
+    "$AUDIT" && echo "[+] audit silenced."
+
+# Silence IRQ affine log
+IRQ="./kernel/irq/cpuhotplug.c"
+[ -f "$IRQ" ] && sed -i \
+    's/pr_info_ratelimited("IRQ %u: no longer affine/pr_debug("IRQ %u: no longer affine/g' \
+    "$IRQ" && echo "[+] IRQ affine silenced."
+
+# Silence raw: 0x log sources
+FILES=(
+    "./drivers/net/ethernet/qlogic/qed/qed_debug.c"
+    "./drivers/power/supply/qcom/fg-util.c"
+    "./drivers/power/supply/renesas/idtp9418.c"
+    "./drivers/power/supply/renesas/idtp9415.c"
+    "./drivers/power/supply/renesas/idtp9415_cas.c"
+    "./drivers/power/supply/qcom/qpnp-fg-gen4-pipa.c"
+    "./drivers/power/supply/qcom/qpnp-fg-gen4.c"
+    "./drivers/power/supply/nuvolta/rx1619.c"
+    "./drivers/power/supply/nuvolta/rx1619_cas.c"
+    "./drivers/power/supply/qcom_cas/rx1619.c"
+    "./drivers/power/supply/qcom_cas/idtp9415.c"
+)
+
+for FILE in "${FILES[@]}"; do
+    [ -f "$FILE" ] && \
+    perl -0777 -pi -e 's/\b(?:fg_dbg|dev_info|printk|snd_iprintf)\s*\([^;]*?(?:raw:\s*0x|esr_raw|ept_raw|CEP_raw)[^;]*?\);/(void)0;/gs' "$FILE" && \
+    echo "[+] Silenced: $FILE"
+done
+
+# Silence send_afe_cal_type log
+sed -i 's/pr_info("%s: cal_index is %d/pr_debug("%s: cal_index is %d/' \
+    techpack/audio/dsp/q6afe.c 2>/dev/null && echo "[+] q6afe silenced."
+
+# Silence cs35l41 amp driver logs
+grep -rl "cs35l41_pcm_hw_params\|cs35l41_component_set_sysclk\|cs35l41_main_amp_event" \
+    --include="*.c" . 2>/dev/null | \
+    xargs -r sed -i 's/dev_info(/dev_dbg(/g' && echo "[+] cs35l41 silenced."
+
+# Silence BBG logs (after BBG clone)
+grep -rl "has been marked as untrusted" Baseband-guard/ 2>/dev/null | \
+    xargs -r sed -i 's/pr_info(/pr_debug(/g' && echo "[+] BBG silenced."
+
+
+
+
+
+#end bolt 
+
+
+
+# Silence socinfo logs
+SOCINFO="drivers/soc/qcom/socinfo.c"
+[ -f "$SOCINFO" ] && sed -i 's/pr_info(/pr_debug(/g' "$SOCINFO" && echo "[+] socinfo silenced."
+
+# Silence kauditd and audit_log_lost
+AUDIT="./kernel/audit.c"
+[ -f "$AUDIT" ] && sed -i \
+    -e 's/kauditd_printk_skb(skb)/((void)0)/g' \
+    -e 's/audit_log_lost("[^"]*"[^;]*);/((void)0);/g' \
+    "$AUDIT" && echo "[+] audit silenced."
+
+# Silence IRQ affine log
+IRQ="kernel/irq/cpuhotplug.c"
+[ -f "$IRQ" ] && sed -i \
+    's/pr_info_ratelimited("IRQ %u: no longer affine/pr_debug("IRQ %u: no longer affine/g' \
+    "$IRQ" && echo "[+] IRQ affine silenced."
+
+    # 5. MIUI configurations
     if [ "$OS_TYPE" == "miui" ]; then
         echo "[*] Injecting MIUI specific configurations..."
         scripts/config --file "${OUT_DIR}/.config" \
@@ -282,32 +676,31 @@ build_target() {
         echo "[+] Kernel Image path: ${OUT_DIR}/arch/arm64/boot/Image"
 
         echo "[*] Packaging to AnyKernel3 ($OS_TYPE)..."
-        # 确保独立打包：清空现有的 kernels 目录
         rm -rf anykernel/kernels/*
         mkdir -p "anykernel/kernels/${OS_TYPE}/"
-        
+
         cp "${OUT_DIR}/arch/arm64/boot/Image" "anykernel/kernels/${OS_TYPE}/"
         cp "${OUT_DIR}/arch/arm64/boot/dtb" "anykernel/kernels/${OS_TYPE}/"
-        
+
         if [ -f "${OUT_DIR}/arch/arm64/boot/dtbo.img" ]; then
             cp "${OUT_DIR}/arch/arm64/boot/dtbo.img" "anykernel/kernels/${OS_TYPE}/"
         fi
-        
-        # 确定 ZIP 文件名
+
         local KSU_ZIP_STR="NoKernelSU"
         if [ "$ENABLE_KSU" -eq 1 ]; then
-            KSU_ZIP_STR="ReSukiSU-SuSFS"
+            KSU_ZIP_STR="BakaSU-SuSFS"
         fi
+
         local GIT_COMMIT_ID=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "unknown")
         local OS_UPPER=$(echo "$OS_TYPE" | tr '[:lower:]' '[:upper:]')
         local ZIP_FILENAME="APTKernel_${OS_UPPER}_${DEVICE_NAME}_${KSU_ZIP_STR}_$(date +'%Y%m%d_%H%M%S')_anykernel3_${GIT_COMMIT_ID}.zip"
-        
+
         echo "[*] Zipping $ZIP_FILENAME ..."
         pushd anykernel > /dev/null
         zip -r9 "$ZIP_FILENAME" ./* -x .git .gitignore out/ ./*.zip > /dev/null
         mv "$ZIP_FILENAME" ../
         popd > /dev/null
-        
+
         echo "[+] $OS_TYPE kernel binaries successfully packed into: $ZIP_FILENAME"
     else
         echo "[-] $OS_TYPE Build Failed. Kernel Image not found."

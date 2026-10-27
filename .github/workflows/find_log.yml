@@ -1,0 +1,46 @@
+name: Find BBG log source
+
+on:
+  workflow_dispatch:
+
+jobs:
+  find:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Search BBG logs
+        run: |
+          {
+            echo "=========================================="
+            echo " BBG folder structure"
+            echo "=========================================="
+            find . -type d -iname "*baseband*" -o -type d -iname "*bbg*" 2>/dev/null
+
+            echo ""
+            echo "=========================================="
+            echo " has been marked as untrusted"
+            echo "=========================================="
+            grep -rn "has been marked as untrusted\|untrusted process" \
+              --include="*.c" --include="*.h" . 2>/dev/null || echo "NOT FOUND"
+
+            echo ""
+            echo "=========================================="
+            echo " All print functions in BBG"
+            echo "=========================================="
+            find . -type d -iname "*baseband*" | while read dir; do
+              grep -rn "pr_info\|pr_err\|printk\|dev_info" \
+                --include="*.c" "$dir" 2>/dev/null | head -20
+            done || echo "NOT FOUND"
+
+          } | tee bbg-log-source.txt
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: bbg-log-source
+          path: bbg-log-source.txt
+          retention-days: 7

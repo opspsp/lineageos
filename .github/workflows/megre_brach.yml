@@ -1,0 +1,182 @@
+name: Branch Manager
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Action to perform"
+        required: true
+        type: choice
+        options:
+          - merge
+          - reset
+          - sync
+        default: merge
+      target_branches:
+        description: "merge: * or comma-separated (default *) | sync: empty=current branch, * for all | reset: comma-separated"
+        required: false
+        type: string
+        default: ""
+      upstream_url:
+        description: "[reset/sync] Upstream repo URL (e.g. https://github.com/owner/repo)"
+        required: false
+        type: string
+        default: ""
+      upstream_branch:
+        description: "[reset/sync] Upstream branch"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  branch-manager:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "TODAY=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
+          echo "SOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+
+      - name: Resolve target branches
+        id: resolve
+        run: |
+          INPUT="${{ github.event.inputs.target_branches }}"
+          MODE="${{ github.event.inputs.mode }}"
+          SOURCE_BRANCH="${{ github.ref_name }}"
+
+          if [[ "$MODE" == "sync" ]]; then
+            if [[ -z "$INPUT" ]]; then
+              BRANCHES="$SOURCE_BRANCH"
+            elif [[ "$INPUT" == "*" ]]; then
+              BRANCHES=$(git branch -r | grep "origin/" | grep -v "HEAD" | \
+                sed 's|origin/||' | tr -d ' ')
+            else
+              BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ')
+            fi
+
+          elif [[ "$MODE" == "merge" ]]; then
+            if [[ -z "$INPUT" || "$INPUT" == "*" ]]; then
+              BRANCHES=$(git branch -r | grep "origin/" | grep -v "HEAD" | \
+                sed 's|origin/||' | tr -d ' ' | grep -v "^${SOURCE_BRANCH}$")
+            else
+              BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ' | \
+                grep -v "^${SOURCE_BRANCH}$")
+            fi
+
+          elif [[ "$MODE" == "reset" ]]; then
+            if [[ -z "$INPUT" ]]; then
+              echo "[!] reset mode requires target_branches - exiting"
+              exit 1
+            fi
+            BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ')
+          fi
+
+          echo "branches<<EOF" >> $GITHUB_OUTPUT
+          echo "$BRANCHES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Fetch upstream (reset/sync mode only)
+        if: ${{ github.event.inputs.mode == 'reset' || github.event.inputs.mode == 'sync' }}
+        run: |
+          git remote add upstream "${{ github.event.inputs.upstream_url }}"
+          git fetch upstream --no-tags
+
+      - name: Execute action on each branch
+        run: |
+          MODE="${{ github.event.inputs.mode }}"
+          SOURCE="$SOURCE_BRANCH"
+          UPSTREAM_BRANCH="${{ github.event.inputs.upstream_branch }}"
+
+          while IFS= read -r branch; do
+            [[ -z "$branch" ]] && continue
+
+            echo "======================================="
+            echo "[$MODE] Processing branch: $branch"
+            echo "======================================="
+
+            if [[ "$MODE" == "merge" ]]; then
+
+              CHANGED_WF=$(git diff --name-only "origin/$branch" "origin/$SOURCE" \
+                -- .github/workflows/ | grep -E "\.(yml|yaml)$" || true)
+
+              git checkout "$branch"
+
+              if [[ -n "$CHANGED_WF" ]]; then
+                echo "$CHANGED_WF" | while read wf; do
+                  [[ -z "$wf" ]] && continue
+                  BASENAME=$(basename "$wf")
+                  NAME="${BASENAME%.*}"
+                  EXT="${BASENAME##*.}"
+                  DIRNAME=$(dirname "$wf")
+
+                  git show "origin/$SOURCE:$wf" > /tmp/src_wf 2>/dev/null || continue
+
+                  if [[ -f "$wf" ]]; then
+                    if ! cmp -s "/tmp/src_wf" "$wf"; then
+                      NEW_NAME="${NAME}_${SOURCE}.${EXT}"
+                      mv "$wf" "${DIRNAME}/${NEW_NAME}"
+                      echo "[~] Renamed: $BASENAME -> $NEW_NAME"
+                    else
+                      echo "[=] Identical, skipping: $wf"
+                      continue
+                    fi
+                  fi
+
+                  mkdir -p "$DIRNAME"
+                  cp /tmp/src_wf "$wf"
+                  echo "[+] Copied: $wf"
+                done
+              fi
+
+              git merge "origin/$SOURCE" -X theirs --no-commit --no-ff || true
+
+              git diff --cached --name-only | grep "^\.github/workflows/" | while read wf; do
+                git checkout HEAD -- "$wf" 2>/dev/null || true
+              done
+
+              git add -A
+
+              if git diff --cached --quiet; then
+                echo "[=] No changes on $branch"
+              else
+                git commit -m "chore: merged from $SOURCE into $branch [source priority]"
+                git push origin "$branch"
+                echo "[+] $branch merged successfully"
+              fi
+
+            elif [[ "$MODE" == "reset" ]]; then
+
+              git checkout -B "$branch" "origin/$branch"
+              git reset --hard "upstream/$UPSTREAM_BRANCH"
+              git push --force origin "$branch"
+              echo "[+] $branch reset to upstream/$UPSTREAM_BRANCH"
+
+            elif [[ "$MODE" == "sync" ]]; then
+
+              git checkout -B "$branch" "origin/$branch" 2>/dev/null || git checkout "$branch"
+
+              if git rebase "upstream/$UPSTREAM_BRANCH" -X ours --no-stat; then
+                git push --force-with-lease origin "$branch"
+                echo "[+] $branch synced (your changes preserved)"
+              else
+                echo "[!] Conflict on $branch - applying ours and skipping"
+                git rebase --skip || git rebase --abort
+                git push --force-with-lease origin "$branch" || true
+              fi
+
+            fi
+
+            git checkout "$SOURCE"
+
+          done <<< "${{ steps.resolve.outputs.branches }}"

@@ -1,0 +1,51 @@
+name: Sync with upstream
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_repo:
+        description: "Upstream repo to sync from (e.g. LineageOS/android_kernel_xiaomi_sm8250)"
+        required: true
+        type: string
+      upstream_branch:
+        description: "Upstream branch (e.g. lineage-23.2)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote and fetch
+        run: |
+          git remote add upstream https://github.com/${{ github.event.inputs.upstream_repo }}.git
+          git fetch upstream ${{ github.event.inputs.upstream_branch }}
+
+      - name: Rebase on upstream (your changes stay on top)
+        run: |
+          # rebase: puts upstream commits first, then replays YOUR commits on top
+          # if conflict happens: your version wins (-Xours)
+          git rebase upstream/${{ github.event.inputs.upstream_branch }} \
+            -X ours \
+            --no-stat || {
+              echo "Rebase conflict detected - your changes were prioritized"
+              git rebase --continue || git rebase --skip
+            }
+
+      - name: Push (force needed after rebase)
+        run: |
+          git push --force-with-lease origin HEAD

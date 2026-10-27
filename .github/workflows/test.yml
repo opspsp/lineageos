@@ -1,0 +1,61 @@
+name: Apply IR fix for alioth
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-ir:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: recursive
+
+      - name: Checkout reference kernel source
+        uses: actions/checkout@v4
+        with:
+          repository: IzumiYouka/android_kernel_xiaomi_sm8250
+          ref: freesia
+          submodules: recursive
+          path: reference-kernel
+
+      - name: Apply IR fix
+        run: |
+          DTS="arch/arm64/boot/dts/vendor/qcom/xiaomi-sm8250-common.dtsi"
+
+          # 1. Replace ir-spi.c with updated version from reference
+          cp reference-kernel/drivers/media/rc/ir-spi.c \
+             drivers/media/rc/ir-spi.c
+
+          # 2. Fix DTS: change compatible string
+          sed -i 's/compatible = "ir-spi";/compatible = "ir-spi-led";/' "$DTS"
+
+          # 3. Fix DTS: add power-supply line inside ir-spi@0 node
+          sed -i '/ir-spi@0/,/};/{
+            /spi-max-frequency = <19200000>;/a\\t\tpower-supply = <\&irda_regulator>;
+          }' "$DTS"
+
+          echo "=== Verifying changes ==="
+          echo "-- ir-spi.c compatible string --"
+          grep "compatible" drivers/media/rc/ir-spi.c
+
+          echo "-- DTS ir-spi@0 node --"
+          grep -A 7 "ir-spi@0" "$DTS"
+
+          echo ""
+          echo "=== irda_regulator definition check ==="
+          grep -rn "irda_regulator" arch/arm64/boot/dts/vendor/qcom/ || echo "NOT FOUND - may need to add regulator definition"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add drivers/media/rc/ir-spi.c \
+                  arch/arm64/boot/dts/vendor/qcom/xiaomi-sm8250-common.dtsi
+          git commit -m "media: rc: ir-spi: update driver and fix DTS for alioth IR blaster"
+          git push

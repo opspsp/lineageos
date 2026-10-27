@@ -1,0 +1,147 @@
+name: Smart merge my changes to other branches
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branches:
+        description: "Target branches: * for all, or comma-separated (e.g. branch1,branch2)"
+        required: true
+        type: string
+      my_username:
+        description: "Your GitHub username to detect your commits"
+        required: true
+        type: string
+      upstream_url:
+        description: "Upstream repo URL (base for 3-way merge)"
+        required: true
+        type: string
+      upstream_branch:
+        description: "Upstream branch (base for 3-way merge)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "TODAY=$(date +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
+          echo "SOURCE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "${{ github.event.inputs.upstream_url }}"
+          git fetch upstream "${{ github.event.inputs.upstream_branch }}" --no-tags
+
+      - name: Detect my changed files
+        run: |
+          USERNAME="${{ github.event.inputs.my_username }}"
+          git log --author="$USERNAME" --pretty=format:"%H" | \
+            xargs -I{} git diff-tree --no-commit-id -r --name-only {} | \
+            sort -u > /tmp/files_to_merge.txt
+          echo "[*] Files changed by $USERNAME:"
+          cat /tmp/files_to_merge.txt
+
+      - name: Resolve target branches
+        id: resolve
+        run: |
+          INPUT="${{ github.event.inputs.target_branches }}"
+          SOURCE_BRANCH="${{ github.ref_name }}"
+          if [[ "$INPUT" == "*" ]]; then
+            BRANCHES=$(git branch -r | grep "origin/" | grep -v "HEAD" | \
+              sed 's|origin/||' | tr -d ' ' | grep -v "^${SOURCE_BRANCH}$")
+          else
+            BRANCHES=$(echo "$INPUT" | tr ',' '\n' | tr -d ' ' | \
+              grep -v "^${SOURCE_BRANCH}$")
+          fi
+          echo "branches<<EOF" >> $GITHUB_OUTPUT
+          echo "$BRANCHES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Merge changes to each target branch
+        run: |
+          SOURCE_BRANCH="${{ github.ref_name }}"
+          UPSTREAM_BRANCH="${{ github.event.inputs.upstream_branch }}"
+
+          while IFS= read -r branch; do
+            [[ -z "$branch" ]] && continue
+            echo "======================================="
+            echo "Merging into branch: $branch"
+            echo "======================================="
+
+            git checkout -B "$branch" "origin/$branch" || {
+              git checkout "$SOURCE_BRANCH"
+              continue
+            }
+
+            while read relpath; do
+              [[ -z "$relpath" ]] && continue
+
+              BASE=$(mktemp)
+              git show "upstream/$UPSTREAM_BRANCH:$relpath" > "$BASE" 2>/dev/null || echo "" > "$BASE"
+
+              MINE=$(mktemp)
+              git show "origin/$SOURCE_BRANCH:$relpath" > "$MINE" 2>/dev/null || {
+                rm -f "$BASE" "$MINE"
+                continue
+              }
+
+              THEIRS=$(mktemp)
+              if [[ -f "$relpath" ]]; then
+                cp "$relpath" "$THEIRS"
+              else
+                echo "" > "$THEIRS"
+              fi
+
+              if [[ "$relpath" == .github/workflows/* ]]; then
+                BASENAME=$(basename "$relpath")
+                DIRNAME=$(dirname "$relpath")
+                NAME="${BASENAME%.*}"; EXT="${BASENAME##*.}"
+                if [[ -f "$relpath" ]] && ! cmp -s "$MINE" "$relpath"; then
+                  mv "$relpath" "${DIRNAME}/${NAME}_${TODAY}.${EXT}"
+                  echo "[~] Renamed: $BASENAME"
+                fi
+                mkdir -p "$DIRNAME"
+                cp "$MINE" "$relpath"
+                echo "[+] Copied workflow: $relpath"
+              else
+                mkdir -p "$(dirname $relpath)"
+                git merge-file -q "$THEIRS" "$BASE" "$MINE"
+                MERGE_RESULT=$?
+                if [[ $MERGE_RESULT -eq 0 ]]; then
+                  cp "$THEIRS" "$relpath"
+                  echo "[+] Merged clean: $relpath"
+                elif [[ $MERGE_RESULT -gt 0 ]]; then
+                  cp "$MINE" "$relpath"
+                  echo "[!] Conflict resolved (source priority): $relpath"
+                fi
+              fi
+
+              rm -f "$BASE" "$MINE" "$THEIRS"
+
+            done < /tmp/files_to_merge.txt
+
+            git add -A
+            if git diff --cached --quiet; then
+              echo "[=] No changes on $branch"
+            else
+              git commit -m "chore: smart merge from $SOURCE_BRANCH [$TODAY]"
+              git push origin "$branch"
+              echo "[+] $branch updated"
+            fi
+
+            git checkout "$SOURCE_BRANCH"
+
+          done <<< "${{ steps.resolve.outputs.branches }}"

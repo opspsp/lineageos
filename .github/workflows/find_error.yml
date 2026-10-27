@@ -1,0 +1,49 @@
+name: Check branch2 build error source
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check audit.c structure
+        run: |
+          {
+            echo "=========================================="
+            echo " kauditd_printk_skb in audit.c"
+            echo "=========================================="
+            grep -n "kauditd_printk_skb\|audit_log_lost" kernel/audit.c 2>/dev/null | head -30 || echo "NOT FOUND"
+
+            echo ""
+            echo "=========================================="
+            echo " raw: 0x in qed_debug.c"
+            echo "=========================================="
+            grep -n '"raw: 0x' \
+              drivers/net/ethernet/qlogic/qed/qed_debug.c 2>/dev/null || echo "NOT FOUND"
+
+            echo ""
+            echo "=========================================="
+            echo " aw8697 #define DEBUG and pr_info"
+            echo "=========================================="
+            grep -n "#define DEBUG\|pr_info\|aw_dev_info" \
+              drivers/input/misc/aw8697_haptic/aw8697.c 2>/dev/null | head -20 || echo "NOT FOUND"
+
+            echo ""
+            echo "=========================================="
+            echo " FG pr_info remaining"
+            echo "=========================================="
+            grep -n "pr_info" \
+              drivers/power/supply/qcom/qpnp-fg-gen4.c 2>/dev/null | head -10 || echo "NOT FOUND"
+
+          } | tee branch2-check.txt
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch2-check
+          path: branch2-check.txt
+          retention-days: 7
