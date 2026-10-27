@@ -1,6 +1,6 @@
 #!/bin/bash
 # Exit on any error
-set -e
+set -eo pipefail
 
 # ==========================================
 # Argument Parsing
@@ -73,10 +73,12 @@ mkdir -p "$CCACHE_DIR"
 # ==========================================
 if [ "$ENABLE_KSU" -eq 1 ]; then
     echo "==========================================="
-    echo " [*] Initializing KernelSU (ReSukiSU) Setup"
+    echo " [*] Initializing KernelSU (BakaSU) Setup"
     echo "==========================================="
-    echo "[*] Downloading and running ReSukiSU remote setup script..."
-    curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+    echo "[*] Downloading and running BakaSU remote setup script..."
+    curl -fLSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
+    echo "[*] KernelSU source revision:"
+    git -C KernelSU log -1 --format='%H %s'
     echo "[+] KernelSU setup finished."
 fi
 
@@ -670,7 +672,7 @@ IRQ="kernel/irq/cpuhotplug.c"
 
         local KSU_ZIP_STR="NoKernelSU"
         if [ "$ENABLE_KSU" -eq 1 ]; then
-            KSU_ZIP_STR="ReSukiSU-SuSFS"
+            KSU_ZIP_STR="BakaSU-SuSFS"
         fi
 
         local GIT_COMMIT_ID=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "unknown")

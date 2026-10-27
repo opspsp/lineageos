@@ -23,7 +23,7 @@ on:
           - thyme
           - umi
       ksu:
-        description: 'Enable KernelSU (ReSukiSU)'
+        description: 'Enable KernelSU (BakaSU)'
         required: true
         type: boolean
         default: true
@@ -40,7 +40,8 @@ on:
 jobs:
   build-kernel:
     name: Build ${{ github.event.inputs.device }} | KSU:${{ github.event.inputs.ksu }} | OS:${{ github.event.inputs.target_os }}
-    runs-on: ubuntu-latest
+    # Keep the legacy kernel dependencies stable when ubuntu-latest changes.
+    runs-on: ubuntu-22.04
     
     steps:
     - name: Checkout Repository
@@ -72,6 +73,7 @@ jobs:
         wget -q https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260716-release/Clang-16.0.6-20260716.tar.gz
         tar -zxvf Clang-16.0.6-20260716.tar.gz
     - name: Run Build Script
+      shell: bash
       run: |
         chmod +x build_kernel.sh
         
@@ -86,10 +88,18 @@ jobs:
         fi
         
         echo "Executing command: ./build_kernel.sh $ARGS"
-        ./build_kernel.sh $ARGS
+        ./build_kernel.sh $ARGS 2>&1 | tee build.log
+    - name: Upload Build Log
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: BuildLog-${{ github.event.inputs.device }}-${{ github.run_id }}
+        path: build.log
+        if-no-files-found: ignore
     - name: Upload Flashable ZIP
       uses: actions/upload-artifact@v7
       with:
         name: APTKernel-${{ github.event.inputs.device }}-${{ github.event.inputs.target_os }}-${{ github.run_id }}
         path: APTKernel_*.zip
+        if-no-files-found: error
         compression-level: 0
