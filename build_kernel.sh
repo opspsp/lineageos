@@ -213,13 +213,6 @@ build_target() {
         "CONFIG_DEBUG_LIST"
         "CONFIG_ARCH_HAS_DEBUG_VIRTUAL"
         #"CONFIG_MSM_TZ_LOG"
-        "CONFIG_NETFILTER_NETLINK_LOG"
-        "CONFIG_NF_LOG_COMMON"
-        "CONFIG_NETFILTER_XT_TARGET_LOG"
-        "CONFIG_NETFILTER_XT_TARGET_NFLOG"
-        "CONFIG_NETFILTER_XT_MATCH_QUOTA2_LOG"
-        "CONFIG_NF_LOG_IPV4"
-        "CONFIG_NF_LOG_IPV6"
         "CONFIG_DEBUG_PREEMPT"
         "CONFIG_USB_PD_PHY_DEBUG"
         "CONFIG_BQ2597X_DEBUG"
@@ -685,9 +678,20 @@ fi
         fi
     fi
 
+    # Android netd StrictController requires the NFLOG target at boot. Packet
+    # logging support is a functional dependency, not optional kernel debug.
+    scripts/config --file "${OUT_DIR}/.config" \
+        -e NETFILTER_XT_TARGET_NFLOG -e NETFILTER_NETLINK_LOG
+
     # Re-evaluate dependencies after applying the selected build options.
     echo "[*] Updating config (make olddefconfig)..."
     make "${MAKE_OPTS[@]}" olddefconfig
+    for required_feature in NETFILTER_XT_TARGET_NFLOG NETFILTER_NETLINK_LOG; do
+        if ! grep -qx "CONFIG_${required_feature}=y" "${OUT_DIR}/.config"; then
+            echo "[!] Missing built-in ${required_feature}; Android netd cannot initialize."
+            exit 1
+        fi
+    done
     cp "${OUT_DIR}/.config" "${KERNEL_DIR}/kernel-${DEVICE_NAME}-${OS_TYPE}.config"
 
     # ----------------------------------------------------
