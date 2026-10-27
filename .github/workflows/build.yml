@@ -36,6 +36,11 @@ on:
           - aosp
           - miui
           - both
+      diagnostic:
+        description: 'Use upstream settings and retain boot logs (disable BBG and custom tuning)'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   build-kernel:
@@ -74,7 +79,10 @@ jobs:
         tar -zxvf Clang-16.0.6-20260716.tar.gz
     - name: Run Build Script
       shell: bash
+      env:
+        KERNEL_DIAGNOSTIC: ${{ github.event.inputs.diagnostic }}
       run: |
+        bash -n build_kernel.sh
         chmod +x build_kernel.sh
         
         ARGS="${{ github.event.inputs.device }}"
@@ -103,3 +111,12 @@ jobs:
         path: APTKernel_*.zip
         if-no-files-found: error
         compression-level: 0
+    - name: Upload Kernel Diagnostics
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: KernelDiagnostics-${{ github.event.inputs.device }}-${{ github.run_id }}
+        path: |
+          kernel-*.config
+          out_*/System.map
+        if-no-files-found: ignore

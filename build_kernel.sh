@@ -27,6 +27,7 @@ fi
 
 ENABLE_KSU=0
 TARGET_OS="both"
+DIAGNOSTIC_BUILD="${KERNEL_DIAGNOSTIC:-false}"
 
 shift
 
@@ -85,6 +86,7 @@ fi
 # ==========================================
 # Baseband-guard Setup
 # ==========================================
+if [ "$DIAGNOSTIC_BUILD" != "true" ]; then
 echo "==========================================="
 echo " [*] Initializing Baseband-guard Setup"
 echo "==========================================="
@@ -95,6 +97,7 @@ echo "[*] Patching security/Kconfig for baseband_guard..."
 sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
 echo "[+] Baseband-guard setup finished."
 echo "==========================================="
+fi
 
 # ==========================================
 # AnyKernel3 Setup
@@ -198,6 +201,7 @@ build_target() {
     # ----------------------------------------------------
     # Configuration tweaks (Debugging & Performance)
     # ----------------------------------------------------
+    if [ "$DIAGNOSTIC_BUILD" != "true" ]; then
     echo "[*] Disabling unnecessary debugging configs..."
     disable_items=(
         "CONFIG_ARCH_SUPPORTS_DEBUG_PAGEALLOC"
@@ -417,9 +421,15 @@ scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_FAIR_GROUP_SCHED
 scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
     
 
-    # 1. Baseband-guard configuration (Always applied)
+    fi
+
+    # 1. Baseband-guard configuration
+    if [ "$DIAGNOSTIC_BUILD" != "true" ]; then
     echo "[*] Injecting Baseband-guard configuration..."
     scripts/config --file "${OUT_DIR}/.config" -e BBG
+    else
+        scripts/config --file "${OUT_DIR}/.config" -d BBG
+    fi
 
     # 2. KernelSU configurations
     if [ "$ENABLE_KSU" -eq 1 ]; then
@@ -429,11 +439,14 @@ scripts/config --file "${OUT_DIR}/.config" --enable CONFIG_CGROUP_SCHED
             -e THREAD_INFO_IN_TASK \
             -e KSU_SUSFS
 
+        if [ "$DIAGNOSTIC_BUILD" != "true" ]; then
         echo "[*] Silencing KernelSU logs..."
         find . -type f -name "*.c" \( -path "*kernelsu*" -o -path "*KernelSU*" \) -exec sed -i 's/pr_info(/pr_debug(/g' {} + || true
+        fi
         
     fi
 
+if [ "$DIAGNOSTIC_BUILD" != "true" ]; then
 # Silence aw8697 haptic driver logs
 AW_DIR="./drivers/input/misc/aw8697_haptic"
 if [ -d "$AW_DIR" ]; then
@@ -607,6 +620,8 @@ IRQ="kernel/irq/cpuhotplug.c"
     's/pr_info_ratelimited("IRQ %u: no longer affine/pr_debug("IRQ %u: no longer affine/g' \
     "$IRQ" && echo "[+] IRQ affine silenced."
 
+fi
+
     # 5. MIUI configurations
     if [ "$OS_TYPE" == "miui" ]; then
         echo "[*] Injecting MIUI specific configurations..."
@@ -653,9 +668,27 @@ IRQ="kernel/irq/cpuhotplug.c"
             -e REKERNEL_NETWORK
     fi
 
-    # We always need to re-evaluate dependencies because BBG is injected unconditionally
+    if [ "$DIAGNOSTIC_BUILD" == "true" ]; then
+        echo "[*] Diagnostic build: retain upstream configuration and driver logging."
+        scripts/config --file "${OUT_DIR}/.config" \
+            -e PRINTK -e PRINTK_TIME -e PSTORE -e PSTORE_CONSOLE \
+            -e PSTORE_PMSG -e PSTORE_RAM -e IKCONFIG -e IKCONFIG_PROC \
+            -e KALLSYMS -e KALLSYMS_ALL -e DEBUG_BUGVERBOSE \
+            --set-val LOG_BUF_SHIFT 20 \
+            --set-val LOG_CPU_MAX_BUF_SHIFT 17 \
+            --set-val PRINTK_SAFE_LOG_BUF_SHIFT 13 \
+            --set-val CONSOLE_LOGLEVEL_DEFAULT 8 \
+            --set-val MESSAGE_LOGLEVEL_DEFAULT 7 \
+            --set-val PANIC_TIMEOUT 10
+        if [ "$ENABLE_KSU" -eq 0 ]; then
+            scripts/config --file "${OUT_DIR}/.config" -d KSU -d KSU_SUSFS
+        fi
+    fi
+
+    # Re-evaluate dependencies after applying the selected build options.
     echo "[*] Updating config (make olddefconfig)..."
     make "${MAKE_OPTS[@]}" olddefconfig
+    cp "${OUT_DIR}/.config" "${KERNEL_DIR}/kernel-${DEVICE_NAME}-${OS_TYPE}.config"
 
     # ----------------------------------------------------
     # Compilation
@@ -689,6 +722,9 @@ IRQ="kernel/irq/cpuhotplug.c"
         local KSU_ZIP_STR="NoKernelSU"
         if [ "$ENABLE_KSU" -eq 1 ]; then
             KSU_ZIP_STR="BakaSU-SuSFS"
+        fi
+        if [ "$DIAGNOSTIC_BUILD" == "true" ]; then
+            KSU_ZIP_STR="Diagnostic-${KSU_ZIP_STR}"
         fi
 
         local GIT_COMMIT_ID=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "unknown")
